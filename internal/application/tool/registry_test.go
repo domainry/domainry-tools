@@ -3,8 +3,10 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	sdk "github.com/domainry/domainry-tools-sdk"
 	"testing"
+	"time"
 )
 
 func TestSelectionsValidateAndReauthorize(t *testing.T) {
@@ -53,5 +55,34 @@ func TestSelectionsValidateAndReauthorize(t *testing.T) {
 	allowed = true
 	if _, e := selected.InvokeConversationTool(t.Context(), in); e == nil {
 		t.Fatal("changed definition accepted")
+	}
+}
+
+func TestSelectionAppliesOwnerDefinitionTimeout(t *testing.T) {
+	registry := NewRegistry()
+	definition := sdk.Definition{Key: "slow", Version: "1", Description: "Slow read", ActionKey: "slow.read", Effect: "read", Idempotency: "natural", InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false}`), OutputSchema: json.RawMessage(`{"type":"object"}`), TimeoutMillis: 25, MaxOutputBytes: 1024}
+	started := make(chan struct{})
+	if err := registry.Register(Registration{Definition: definition, Authorize: func(context.Context, sdk.Request) (sdk.Authorization, error) {
+		return sdk.Authorization{Granted: true}, nil
+	}, Invoke: func(ctx context.Context, _ sdk.Request) (sdk.Result, error) {
+		close(started)
+		<-ctx.Done()
+		return sdk.Result{}, ctx.Err()
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	selected, err := registry.Select([]string{"slow"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := time.Now()
+	_, err = selected.InvokeConversationTool(t.Context(), sdk.Request{Definition: definition, Call: sdk.Call{Name: "slow", Arguments: `{}`}})
+	if !errors.Is(err, context.DeadlineExceeded) || time.Since(before) > time.Second {
+		t.Fatalf("elapsed=%s err=%v", time.Since(before), err)
+	}
+	select {
+	case <-started:
+	default:
+		t.Fatal("tool handler was not invoked")
 	}
 }
