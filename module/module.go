@@ -12,6 +12,7 @@ import (
 	mailtools "github.com/domainry/domainry-tools/internal/adapter/mailtools"
 	recordtools "github.com/domainry/domainry-tools/internal/adapter/recordtools"
 	reporttools "github.com/domainry/domainry-tools/internal/adapter/reporttools"
+	scheduletools "github.com/domainry/domainry-tools/internal/adapter/scheduletools"
 	webtools "github.com/domainry/domainry-tools/internal/adapter/webtools"
 	application "github.com/domainry/domainry-tools/internal/application/tool"
 	preferences "github.com/domainry/domainry-tools/internal/assembly/preferences"
@@ -78,3 +79,7 @@ type AnalysisAdapter = analysistools.Adapter
 type AnalysisSource = analysistools.Source
 
 func AnalysisDefinitions() []toolsdk.Definition { return analysistools.Definitions() }
+
+type ScheduleAdapter = scheduletools.Adapter
+
+func ScheduleDefinitions() []toolsdk.Definition { return scheduletools.Definitions() }
