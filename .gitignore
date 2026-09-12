@@ -1,0 +1,11 @@
+.DS_Store
+.idea/
+.env
+.env.*
+!.env.example
+go.work
+go.work.sum
+node_modules/
+bin/
+dist/
+data/
