@@ -47,7 +47,7 @@ func (s *sourceFixture) RunAnalysis(ctx context.Context, q model.AnalysisRequest
 	if s.large {
 		value = strings.Repeat("x", 1048577)
 	}
-	out := model.AnalysisResult{Spec: q, Columns: []model.AnalysisColumn{{Key: "total", Type: "decimal", Unit: "CNY"}}, Rows: []model.AnalysisRow{{Values: map[string]*string{"total": &value, "undefined": nil}, InputCounts: map[string]string{"dataset": "12001"}, NonNullCounts: map[string]string{"total": "12000"}, Issues: []model.AnalysisCellIssue{{Column: "undefined", Code: "zero_baseline"}}}}, Methods: []model.AnalysisMethod{{Column: "total", Method: "sum"}}, Source: model.AnalysisSource{DatasetKey: q.DatasetKey, DefinitionVersion: s.version, DataVersion: "data-1", QueriedAt: "2026-09-12T00:00:00Z", InputCounts: map[string]string{"dataset": "12001"}, Complete: !s.partial, Proof: "owner-proof"}}
+	out := model.AnalysisResult{Spec: q, Columns: []model.AnalysisColumn{{Key: "total", Type: "decimal", Unit: "CNY"}, {Key: "undefined", Type: "decimal", Unit: "CNY"}}, Rows: []model.AnalysisRow{{Values: map[string]*string{"total": &value, "undefined": nil}, InputCounts: map[string]string{"dataset": "12001"}, NonNullCounts: map[string]string{"total": "12000"}, Issues: []model.AnalysisCellIssue{{Column: "undefined", Code: "zero_baseline"}}}}, Methods: []model.AnalysisMethod{{Column: "total", Method: "sum"}}, Visualization: model.AnalysisVisualization{Chart: nil, OmittedReason: "single_value_or_multiple_dimensions"}, Coverage: model.AnalysisCoverage{Complete: !s.partial, Truncated: false, ReturnedRows: 1, RequestedMaxRows: q.MaxRows, Missing: []model.AnalysisMissing{{Column: "undefined", Code: "null_value", Count: "1"}}}, References: []model.AnalysisReference{{Kind: "business_object", ID: q.DatasetKey, Version: s.version}}, Source: model.AnalysisSource{DatasetKey: q.DatasetKey, DefinitionVersion: s.version, DataVersion: "data-1", QueriedAt: "2026-09-12T00:00:00Z", InputCounts: map[string]string{"dataset": "12001"}, Complete: !s.partial, Proof: "owner-proof"}}
 	s.proofs[digest(q)] = digest(out)
 	return out, nil
 }
@@ -90,7 +90,7 @@ func TestAnalysisToolPreservesOwnerEvidenceAndRechecksWithoutReexecution(t *test
 	if s.runs != 1 || s.request.Filters[0].Values[0] != json.Number("9007199254740993") {
 		t.Fatal(s.request, s.runs)
 	}
-	for _, text := range []string{`9007199254740993.20`, `"undefined":null`, `"dataset":"12001"`, `"total":"12000"`, `"zero_baseline"`, `"CNY"`, `"complete":true`} {
+	for _, text := range []string{`9007199254740993.20`, `"undefined":null`, `"dataset":"12001"`, `"total":"12000"`, `"zero_baseline"`, `"CNY"`, `"complete":true`, `"truncated":false`, `"omitted_reason":"single_value_or_multiple_dimensions"`, `"kind":"business_object"`} {
 		if !strings.Contains(string(out.Content), text) {
 			t.Fatal("lost owner fact", text, string(out.Content))
 		}
@@ -136,10 +136,39 @@ func TestAnalysisToolRejectsMissingPermissionPartialAndValidationOnly(t *testing
 				cancel()
 			}
 			out, err := h.InvokeConversationTool(ctx, r)
-			if err == nil || out.Status == "completed" {
+			if state == "large" {
+				if err != nil || out.Status != "failed" || out.ErrorCode != "analysis.result_too_large_narrow_spec" {
+					t.Fatal("size failure lost", out, err)
+				}
+			} else if err == nil || out.Status == "completed" {
 				t.Fatal("non-execution or partial result became success", out, err)
 			}
+			if state == "large" && s.checks != 0 {
+				t.Fatal("oversize result sent to saved-result authorization")
+			}
 		})
+	}
+}
+
+func TestAnalysisFixedFailureRevalidationDoesNotExposeOwnerErrors(t *testing.T) {
+	a, h, s, r, _ := fixture(t)
+	s.large = true
+	out, err := h.InvokeConversationTool(t.Context(), r)
+	if err != nil || out.Status != "failed" {
+		t.Fatal(out, err)
+	}
+	if err := h.AuthorizeConversationToolResult(t.Context(), r, out); err != nil {
+		t.Fatal(err)
+	}
+	if s.checks != 0 || s.runs != 1 {
+		t.Fatal("failure revalidation reran analysis")
+	}
+	out.Content = json.RawMessage(`{"error":"analysis.result_too_large_narrow_spec","recovery":"secret rows"}`)
+	if err := a.AuthorizeResult(t.Context(), r, out); err == nil {
+		t.Fatal("forged failure content accepted")
+	}
+	if code := recoverableCode(&sdk.Error{Code: "driver.secret", Message: "SELECT secret"}); code != "" {
+		t.Fatal("unknown owner error exposed", code)
 	}
 }
 func TestAnalysisToolRejectsUntrustedInputAndSavedContent(t *testing.T) {
@@ -150,7 +179,7 @@ func TestAnalysisToolRejectsUntrustedInputAndSavedContent(t *testing.T) {
 			t.Fatal("unsafe input executed", raw, err)
 		}
 	}
-	for _, change := range []string{"request", "host", "user", "version", "status", "completion", "rows", "method", "unit", "proof", "source", "catalog", "extra"} {
+	for _, change := range []string{"request", "host", "user", "version", "status", "completion", "rows", "method", "unit", "coverage", "chart", "reference", "proof", "source", "catalog", "extra"} {
 		t.Run(change, func(t *testing.T) {
 			_, h, s, r, _ := fixture(t)
 			out, err := h.InvokeConversationTool(t.Context(), r)
@@ -181,6 +210,12 @@ func TestAnalysisToolRejectsUntrustedInputAndSavedContent(t *testing.T) {
 				envelope.Result.Methods[0].Method = "sample"
 			case "unit":
 				envelope.Result.Columns[0].Unit = "USD"
+			case "coverage":
+				envelope.Result.Coverage.Truncated = true
+			case "chart":
+				envelope.Result.Visualization.OmittedReason = ""
+			case "reference":
+				envelope.Result.References = nil
 			case "proof":
 				envelope.Result.Source.Proof = "forged"
 			case "source":
