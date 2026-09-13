@@ -136,3 +136,20 @@ func (s *Service) ConversationToolAvailable(ctx context.Context, a sdk.Authority
 
 var _ sdk.Settings = (*Service)(nil)
 var _ sdk.Availability = (*Service)(nil)
+
+func (s *Service) ConversationToolResultReadAvailable(ctx context.Context, a sdk.Authority, key string) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	if err := authority(a); err != nil {
+		return false, err
+	}
+	p, err := s.repository.Preference(ctx, a, key)
+	if err != nil || !p.Enabled {
+		return false, err
+	}
+	if reader, ok := s.connections.(sdk.ResultReadConnectionAvailability); ok {
+		return reader.ToolResultReadConnectionAvailable(ctx, a, key)
+	}
+	return s.connections.ToolConnectionAvailable(ctx, a, key)
+}

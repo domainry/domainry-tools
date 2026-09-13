@@ -86,3 +86,46 @@ func TestSelectionAppliesOwnerDefinitionTimeout(t *testing.T) {
 		t.Fatal("tool handler was not invoked")
 	}
 }
+
+func TestOutcomeInspectionCannotInvokeOrRetry(t *testing.T) {
+	r := NewRegistry()
+	reads, writes := 0, 0
+	allowed := true
+	d := sdk.Definition{Key: "write", Version: "1", Description: "Write", ActionKey: "records.write", Effect: "write", Idempotency: "key", InputSchema: json.RawMessage(`{"type":"object"}`), OutputSchema: json.RawMessage(`{"type":"object"}`), TimeoutMillis: 1000, MaxOutputBytes: 1024}
+	writer := func(context.Context, sdk.Request) (sdk.Result, error) {
+		writes++
+		return sdk.Result{Status: "completed", Content: json.RawMessage(`{}`)}, nil
+	}
+	if err := r.Register(Registration{Definition: d, Authorize: func(context.Context, sdk.Request) (sdk.Authorization, error) {
+		return sdk.Authorization{Granted: allowed}, nil
+	}, Invoke: writer, Reconcile: writer, InspectOutcome: func(_ context.Context, in sdk.Request) (sdk.Result, error) {
+		reads++
+		if in.IdempotencyKey != "original" {
+			t.Fatal("changed key")
+		}
+		return sdk.Result{Status: "completed", Content: json.RawMessage(`{"id":"existing"}`)}, nil
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	host, err := r.Select([]string{"write"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := sdk.Request{Definition: d, Call: sdk.Call{Name: "write", Arguments: `{}`}, IdempotencyKey: "original", OutcomeInspectionToken: "inspection"}
+	if _, err = host.InvokeConversationTool(t.Context(), in); err == nil {
+		t.Fatal("inspection invoked")
+	}
+	if _, err = host.ReconcileConversationTool(t.Context(), in); err == nil {
+		t.Fatal("inspection retried")
+	}
+	if _, err = host.InspectConversationToolOutcome(t.Context(), in); err != nil {
+		t.Fatal(err)
+	}
+	allowed = false
+	if _, err = host.InspectConversationToolOutcome(t.Context(), in); err == nil {
+		t.Fatal("revocation ignored")
+	}
+	if writes != 0 || reads != 1 {
+		t.Fatalf("reads %d writes %d", reads, writes)
+	}
+}

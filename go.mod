@@ -2,26 +2,26 @@ module github.com/domainry/domainry-tools
 
 go 1.26.0
 
-require github.com/domainry/domainry-tools-sdk v0.1.1
+require github.com/domainry/domainry-tools-sdk v0.1.3
 
 require github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 // indirect
 
 require (
 	github.com/domainry/domainry-connector-sdk v0.1.1
 	github.com/domainry/domainry-foundation v0.1.0
-	github.com/domainry/domainry-identity-sdk v0.1.7
+	github.com/domainry/domainry-identity-sdk v0.1.10
 	github.com/domainry/domainry-integration-sdk v0.1.5
 	github.com/domainry/domainry-knowledge v0.1.0
 	github.com/domainry/domainry-orm v0.1.30
-	github.com/domainry/domainry-report-sdk v0.1.8
+	github.com/domainry/domainry-report-sdk v0.1.9
 	modernc.org/sqlite v1.57.0
 )
 
 require (
-	github.com/domainry/domainry-agent-sdk v0.1.9 // indirect
+	github.com/domainry/domainry-agent-sdk v0.1.13 // indirect
 	github.com/domainry/domainry-notification-sdk v0.1.0 // indirect
 	github.com/domainry/domainry-scheduler-sdk v0.1.6
-	github.com/domainry/domainry-todo v0.1.0 // indirect
+	github.com/domainry/domainry-todo v0.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect

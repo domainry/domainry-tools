@@ -48,7 +48,7 @@ func (a *Adapter) Register(registry *tools.Registry) error {
 	if a == nil || a.Source == nil || a.Authorize == nil {
 		return fmt.Errorf("analysis tool host configuration is incomplete")
 	}
-	return registry.Register(tools.Registration{Definition: Definitions()[0], Authorize: a.authorize, Invoke: a.Invoke, Reconcile: a.Invoke, AuthorizeResult: a.AuthorizeResult})
+	return registry.Register(tools.Registration{Definition: Definitions()[0], Authorize: a.authorize, Invoke: a.Invoke, Reconcile: a.Invoke, AuthorizeResult: a.AuthorizeResult, AuthorizeResultRead: a.AuthorizeResultRead})
 }
 
 func (a *Adapter) authorize(ctx context.Context, r sdk.Request) (sdk.Authorization, error) {
@@ -171,13 +171,21 @@ func validPresentation(result model.AnalysisResult) bool {
 }
 
 func (a *Adapter) AuthorizeResult(ctx context.Context, r sdk.Request, result sdk.Result) error {
+	return a.authorizeResult(ctx, r, result, false)
+}
+
+func (a *Adapter) AuthorizeResultRead(ctx context.Context, r sdk.Request, result sdk.Result) error {
+	return a.authorizeResult(ctx, r, result, true)
+}
+
+func (a *Adapter) authorizeResult(ctx context.Context, r sdk.Request, result sdk.Result, independent bool) error {
 	in, err := prepare(r)
 	if err != nil {
 		return err
 	}
 	// Fixed, data-free diagnostic results carry no owner values or proof. They
 	// may be replayed under current tool authorization without rerunning a query.
-	if result.Status == "failed" && recoverableCode(&sdk.Error{Code: result.ErrorCode}) != "" {
+	if !independent && result.Status == "failed" && recoverableCode(&sdk.Error{Code: result.ErrorCode}) != "" {
 		if a.source() != nil && digest(result) == digest(recoverableResult(result.ErrorCode)) {
 			return nil
 		}
@@ -198,6 +206,13 @@ func (a *Adapter) AuthorizeResult(ctx context.Context, r sdk.Request, result sdk
 		if out.Catalog == nil || out.Result != nil {
 			return failure("forbidden", "result_invalid")
 		}
+		if independent {
+			reader, ok := source.(ResultReadSource)
+			if !ok {
+				return &sdk.Error{Class: "unavailable", Code: sdk.ResultReadUnsupportedCode}
+			}
+			return reader.AuthorizeAnalysisCatalogRead(ctx, model.AnalysisCatalogReadAuthorization{Request: in.catalogRequest(), Result: *out.Catalog}, r.Authority)
+		}
 		current, err := source.AnalysisCatalog(ctx, in.catalogRequest(), r.Authority)
 		if err != nil {
 			return err
@@ -210,5 +225,24 @@ func (a *Adapter) AuthorizeResult(ctx context.Context, r sdk.Request, result sdk
 	if out.Result == nil || out.Catalog != nil {
 		return failure("forbidden", "result_invalid")
 	}
+	if independent {
+		reader, ok := source.(ResultReadSource)
+		if !ok {
+			return &sdk.Error{Class: "unavailable", Code: sdk.ResultReadUnsupportedCode}
+		}
+		return reader.AuthorizeAnalysisResultRead(ctx, model.AnalysisResultAuthorization{Request: *in.Spec, Result: *out.Result}, r.Authority)
+	}
 	return source.AuthorizeAnalysisResult(ctx, model.AnalysisResultAuthorization{Request: *in.Spec, Result: *out.Result}, r.Authority)
+}
+
+// Optional source-owner reading policy; legacy result authorization is not a grant.
+type ResultReadSource interface {
+	AuthorizeAnalysisResultRead(context.Context, model.AnalysisResultAuthorization, sdk.Authority) error
+	AuthorizeAnalysisCatalogRead(context.Context, model.AnalysisCatalogReadAuthorization, sdk.Authority) error
+}
+
+func (a *Adapter) ConversationToolResultReadAvailable(_ context.Context, authority sdk.Authority, key string) (bool, error) {
+	// Exact source/data authorization occurs against the saved result below.
+	// Discovery of executable datasets is not a prerequisite for this read.
+	return key == Key && authority.Known && authority.RuntimeID != "" && authority.WorkspaceID != "" && authority.UserID != "" && a.source() != nil, nil
 }

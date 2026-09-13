@@ -22,11 +22,15 @@ type ResultAuthorizer func(context.Context, sdk.Request, sdk.Result) error
 // Registration is installed by trusted product composition, never model input.
 // Business handlers own their effects and durable idempotency receipts.
 type Registration struct {
+	InspectOutcome  Handler // optional, strictly receipt-only; never alias a mutating retry
 	Definition      sdk.Definition
 	Authorize       Authorizer
 	Invoke          Handler
 	Reconcile       Handler
 	AuthorizeResult ResultAuthorizer
+	// Explicit source-owned read policy, independent of Authorize. Nil denies
+	// result reading without execution authority; never fall back to invocation.
+	AuthorizeResultRead ResultAuthorizer
 }
 
 type Registry struct {
@@ -136,6 +140,9 @@ func (s *Selection) AuthorizeConversationTool(ctx context.Context, in sdk.Reques
 }
 
 func (s *Selection) invoke(ctx context.Context, in sdk.Request, reconcile bool) (sdk.Result, error) {
+	if in.OutcomeInspectionToken != "" {
+		return sdk.Result{}, denied()
+	}
 	entry, err := s.entry(in)
 	if err != nil {
 		return sdk.Result{}, err
@@ -199,3 +206,65 @@ func (s *Selection) AuthorizeConversationToolResult(ctx context.Context, in sdk.
 
 var _ sdk.Host = (*Selection)(nil)
 var _ sdk.ResultAuthorizer = (*Selection)(nil)
+var _ sdk.ResultReadAuthorizer = (*Selection)(nil)
+
+func (s *Selection) AuthorizeConversationToolResultRead(ctx context.Context, in sdk.Request, result sdk.Result) error {
+	entry, err := s.entry(in)
+	if err != nil {
+		return err
+	}
+	if entry.AuthorizeResultRead == nil {
+		return &sdk.Error{Class: "unavailable", Code: sdk.ResultReadUnsupportedCode}
+	}
+	if !in.Authority.Known || in.Authority.RuntimeID == "" || in.Authority.WorkspaceID == "" || in.Authority.UserID == "" || in.Call.Name != entry.Definition.Key || result.Status != "completed" || len(result.Content) > entry.Definition.MaxOutputBytes || in.OutcomeInspectionToken != "" {
+		return denied()
+	}
+	input, err := schema.CompileSchema(entry.Definition.InputSchema)
+	if err != nil || schema.ValidateJSON(input, []byte(in.Call.Arguments)) != nil {
+		return denied()
+	}
+	output, err := schema.CompileSchema(entry.Definition.OutputSchema)
+	if err != nil || schema.ValidateJSON(output, result.Content) != nil {
+		return denied()
+	}
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(entry.Definition.TimeoutMillis)*time.Millisecond)
+	defer cancel()
+	if err = entry.AuthorizeResultRead(ctx, in, result); err != nil {
+		return err
+	}
+	return ctx.Err()
+}
+
+func (s *Selection) InspectConversationToolOutcome(ctx context.Context, in sdk.Request) (sdk.Result, error) {
+	entry, err := s.entry(in)
+	if err != nil {
+		return sdk.Result{}, err
+	}
+	if in.OutcomeInspectionToken == "" || in.IdempotencyKey == "" || entry.Definition.Effect != "write" || entry.InspectOutcome == nil {
+		return sdk.Result{}, &sdk.Error{Class: "unavailable", Code: "agent.conversation.outcome_inspection_unavailable"}
+	}
+	auth, err := entry.Authorize(ctx, in)
+	if err != nil {
+		return sdk.Result{}, err
+	}
+	if !auth.Granted || auth.ConfirmationRequired {
+		return sdk.Result{}, denied()
+	}
+	compiled, err := schema.CompileSchema(entry.Definition.InputSchema)
+	if err != nil || schema.ValidateJSON(compiled, []byte(in.Call.Arguments)) != nil {
+		return sdk.Result{}, denied()
+	}
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(entry.Definition.TimeoutMillis)*time.Millisecond)
+	defer cancel()
+	out, err := entry.InspectOutcome(ctx, in)
+	if err != nil {
+		return sdk.Result{}, err
+	}
+	if out.Status == "completed" {
+		compiled, e := schema.CompileSchema(entry.Definition.OutputSchema)
+		if e != nil || len(out.Content) > entry.Definition.MaxOutputBytes || schema.ValidateJSON(compiled, out.Content) != nil {
+			return sdk.Result{Status: "uncertain", ErrorCode: "tool.output_invalid"}, nil
+		}
+	}
+	return out, nil
+}

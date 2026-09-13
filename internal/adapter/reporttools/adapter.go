@@ -69,7 +69,7 @@ func (a *Adapter) Register(registry *tools.Registry) error {
 	if a == nil || a.Authorize == nil || a.Source == nil {
 		return fmt.Errorf("report tool host configuration is incomplete")
 	}
-	return registry.Register(tools.Registration{Definition: Definitions()[0], Authorize: a.authorize, Invoke: a.Invoke, Reconcile: a.Invoke, AuthorizeResult: a.AuthorizeResult})
+	return registry.Register(tools.Registration{Definition: Definitions()[0], Authorize: a.authorize, Invoke: a.Invoke, Reconcile: a.Invoke, AuthorizeResult: a.AuthorizeResult, AuthorizeResultRead: a.AuthorizeResultRead})
 }
 
 func (a *Adapter) authorize(ctx context.Context, r sdk.Request) (sdk.Authorization, error) {
@@ -201,6 +201,14 @@ func (a *Adapter) Invoke(ctx context.Context, r sdk.Request) (sdk.Result, error)
 }
 
 func (a *Adapter) AuthorizeResult(ctx context.Context, r sdk.Request, result sdk.Result) error {
+	return a.authorizeResult(ctx, r, result, false)
+}
+
+func (a *Adapter) AuthorizeResultRead(ctx context.Context, r sdk.Request, result sdk.Result) error {
+	return a.authorizeResult(ctx, r, result, true)
+}
+
+func (a *Adapter) authorizeResult(ctx context.Context, r sdk.Request, result sdk.Result, independent bool) error {
 	in, err := prepare(r)
 	if err != nil {
 		return err
@@ -220,6 +228,13 @@ func (a *Adapter) AuthorizeResult(ctx context.Context, r sdk.Request, result sdk
 		if out.Catalog == nil || out.Result != nil {
 			return failure("forbidden", "result_invalid")
 		}
+		if independent {
+			reader, ok := source.(ResultReadSource)
+			if !ok {
+				return &sdk.Error{Class: "unavailable", Code: sdk.ResultReadUnsupportedCode}
+			}
+			return reader.AuthorizeReportCatalogRead(ctx, reportmodel.ReportCatalogReadAuthorization{Request: in.catalogRequest(), Result: *out.Catalog}, r.Authority)
+		}
 		current, err := source.ReportCatalog(ctx, in.catalogRequest(), r.Authority)
 		if err != nil {
 			return err
@@ -232,5 +247,24 @@ func (a *Adapter) AuthorizeResult(ctx context.Context, r sdk.Request, result sdk
 	if out.Result == nil || out.Catalog != nil {
 		return failure("forbidden", "result_invalid")
 	}
+	if independent {
+		reader, ok := source.(ResultReadSource)
+		if !ok {
+			return &sdk.Error{Class: "unavailable", Code: sdk.ResultReadUnsupportedCode}
+		}
+		return reader.AuthorizeReportResultRead(ctx, reportmodel.ReportQueryResultAuthorization{Query: in.queryRequest(), Result: *out.Result}, r.Authority)
+	}
 	return source.AuthorizeReportResult(ctx, reportmodel.ReportQueryResultAuthorization{Query: in.queryRequest(), Result: *out.Result}, r.Authority)
+}
+
+// Optional source-owner reading policy; legacy result authorization is not a grant.
+type ResultReadSource interface {
+	AuthorizeReportResultRead(context.Context, reportmodel.ReportQueryResultAuthorization, sdk.Authority) error
+	AuthorizeReportCatalogRead(context.Context, reportmodel.ReportCatalogReadAuthorization, sdk.Authority) error
+}
+
+func (a *Adapter) ConversationToolResultReadAvailable(_ context.Context, authority sdk.Authority, key string) (bool, error) {
+	// Exact source/data authorization occurs against the saved result below.
+	// Discovery of executable datasets is not a prerequisite for this read.
+	return key == Key && authority.Known && authority.RuntimeID != "" && authority.WorkspaceID != "" && authority.UserID != "" && a.source() != nil, nil
 }

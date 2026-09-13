@@ -58,7 +58,7 @@ func (a *Adapter) Register(reg *tools.Registry) error {
 		return fmt.Errorf("account tool adapter is incomplete")
 	}
 	for _, d := range a.Family.Definitions {
-		if err := reg.Register(tools.Registration{Definition: d, Authorize: a.Authorize, Invoke: a.Invoke, AuthorizeResult: a.AuthorizeResult}); err != nil {
+		if err := reg.Register(tools.Registration{Definition: d, Authorize: a.Authorize, Invoke: a.Invoke, AuthorizeResult: a.AuthorizeResult, AuthorizeResultRead: a.AuthorizeResultRead}); err != nil {
 			return err
 		}
 	}
@@ -311,6 +311,22 @@ func (a *Adapter) AuthorizeResult(ctx context.Context, r sdk.Request, out sdk.Re
 	}
 	if !auth.Granted || auth.ConfirmationRequired {
 		return a.toolError("tool_access_denied")
+	}
+	return a.authorizeResultSource(ctx, r, out)
+}
+
+// Reading a released result needs the current account data policy, not the
+// Agent tool Action. Both policies retain the same source and scope checks.
+func (a *Adapter) AuthorizeResultRead(ctx context.Context, r sdk.Request, out sdk.Result) error {
+	if out.Status != "completed" || out.Completion != "" || out.ErrorCode != "" || out.ResourceID != "" {
+		return a.toolError("source_invalid")
+	}
+	return a.authorizeResultSource(ctx, r, out)
+}
+
+func (a *Adapter) authorizeResultSource(ctx context.Context, r sdk.Request, out sdk.Result) error {
+	if a.Accounts == nil || a.Reads == nil || a.Subject == nil {
+		return a.toolError("account_unavailable")
 	}
 	s, err := a.subject(ctx, r.Authority, integration.ActionIntegrationConnectionAccountsRead)
 	if err != nil {

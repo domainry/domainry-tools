@@ -77,3 +77,17 @@ func (h *Combined) AuthorizeConversationToolResult(ctx context.Context, in sdk.R
 	}
 	return nil
 }
+
+func (h *Combined) InspectConversationToolOutcome(ctx context.Context, in sdk.Request) (sdk.Result, error) {
+	if reader, ok := h.host(in.Definition.Key).(sdk.OutcomeInspector); ok {
+		return reader.InspectConversationToolOutcome(ctx, in)
+	}
+	return sdk.Result{}, &sdk.Error{Class: "unavailable", Code: "agent.conversation.outcome_inspection_unavailable"}
+}
+
+func (h *Combined) AuthorizeConversationToolResultRead(ctx context.Context, in sdk.Request, result sdk.Result) error {
+	if policy, ok := h.host(in.Definition.Key).(sdk.ResultReadAuthorizer); ok {
+		return policy.AuthorizeConversationToolResultRead(ctx, in, result)
+	}
+	return &sdk.Error{Class: "unavailable", Code: sdk.ResultReadUnsupportedCode}
+}

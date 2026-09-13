@@ -50,7 +50,11 @@ func (a *WriteAdapter) Register(reg *tools.Registry) error {
 		return fmt.Errorf("account write adapter is incomplete")
 	}
 	for _, d := range a.Family.Definitions {
-		if err := reg.Register(tools.Registration{Definition: d, Authorize: a.AuthorizeTool, Invoke: a.Invoke, Reconcile: a.Reconcile, AuthorizeResult: a.AuthorizeResult}); err != nil {
+		registration := tools.Registration{Definition: d, Authorize: a.AuthorizeTool, Invoke: a.Invoke, Reconcile: a.Reconcile, AuthorizeResult: a.AuthorizeResult}
+		if d.Effect == "write" {
+			registration.InspectOutcome = a.Reconcile
+		}
+		if err := reg.Register(registration); err != nil {
 			return err
 		}
 	}
@@ -138,6 +142,9 @@ func (a *WriteAdapter) prepare(r sdk.Request) (PreparedWrite, error) {
 }
 
 func (a *WriteAdapter) Invoke(ctx context.Context, r sdk.Request) (sdk.Result, error) {
+	if r.OutcomeInspectionToken != "" {
+		return sdk.Result{}, a.failure("write_access_denied")
+	}
 	return a.execute(ctx, r, false)
 }
 func (a *WriteAdapter) Reconcile(ctx context.Context, r sdk.Request) (sdk.Result, error) {

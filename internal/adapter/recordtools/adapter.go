@@ -49,6 +49,9 @@ func (a *Adapter) Register(reg *tools.Registry) error {
 	}
 	for _, d := range Definitions(a.Spec) {
 		r := tools.Registration{Definition: d, Authorize: a.Authorize, Invoke: a.Invoke, Reconcile: a.Reconcile}
+		if d.Effect == "write" {
+			r.InspectOutcome = a.Reconcile
+		}
 		if err := reg.Register(r); err != nil {
 			return err
 		}
@@ -75,6 +78,9 @@ func result(v any, err error) (sdk.Result, error) {
 	return sdk.Result{Status: "completed", Content: b}, e
 }
 func (a *Adapter) Invoke(ctx context.Context, in sdk.Request) (sdk.Result, error) {
+	if in.OutcomeInspectionToken != "" {
+		return sdk.Result{}, fmt.Errorf("inspection cannot invoke a record mutation")
+	}
 	switch strings.TrimPrefix(in.Definition.Key, a.Spec.Prefix+"_") {
 	case "list":
 		var q struct {
