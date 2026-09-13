@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/domainry/domainry-connector-sdk/calendarwrite"
@@ -19,6 +20,7 @@ type accountWriteFixture struct {
 	*accountReadFixture
 	writeAccess                 integration.ConnectionAccountAccess
 	approved, extraConfirmation bool
+	strictReceipts              bool
 	verifyCalls                 int
 	writes, lookups             []integration.ConnectionAccountWriteRequest
 	writeSubjects               []integration.ConnectionAccountSubject
@@ -102,6 +104,15 @@ func (f *accountWriteFixture) WriteConnectionAccount(ctx context.Context, s inte
 }
 func (f *accountWriteFixture) ReadConnectionAccountWriteReceipt(ctx context.Context, s integration.ConnectionAccountSubject, key string, r integration.ConnectionAccountWriteRequest) (integration.ConnectionAccountWriteResult, error) {
 	f.lookups = append(f.lookups, r)
+	if f.strictReceipts {
+		found := false
+		for i, original := range f.writes {
+			found = found || reflect.DeepEqual(original, r) && f.writeSubjects[i].UserID == s.UserID && f.writeSubjects[i].WorkspaceID == s.WorkspaceID
+		}
+		if !found {
+			return integration.ConnectionAccountWriteResult{Source: r.ExpectedSource, Status: integration.AccountWriteNotFound}, nil
+		}
+	}
 	return f.result(ctx, s, key, r)
 }
 

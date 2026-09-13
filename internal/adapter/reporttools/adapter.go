@@ -229,8 +229,15 @@ func (a *Adapter) authorizeResult(ctx context.Context, r sdk.Request, result sdk
 			return failure("forbidden", "result_invalid")
 		}
 		if independent {
+			if r.ResultProducer != nil {
+				reader, ok := source.(SharedResultReadSource)
+				if !ok || out.Catalog.ReadProof == "" {
+					return &sdk.Error{Class: "unavailable", Code: sdk.ResultReadUnsupportedCode}
+				}
+				return reader.AuthorizeSharedReportCatalogRead(ctx, reportmodel.ReportCatalogReadAuthorization{Request: in.catalogRequest(), Result: *out.Catalog}, r.Authority, *r.ResultProducer)
+			}
 			reader, ok := source.(ResultReadSource)
-			if !ok {
+			if !ok || out.Catalog.ReadProof == "" {
 				return &sdk.Error{Class: "unavailable", Code: sdk.ResultReadUnsupportedCode}
 			}
 			return reader.AuthorizeReportCatalogRead(ctx, reportmodel.ReportCatalogReadAuthorization{Request: in.catalogRequest(), Result: *out.Catalog}, r.Authority)
@@ -238,6 +245,11 @@ func (a *Adapter) authorizeResult(ctx context.Context, r sdk.Request, result sdk
 		current, err := source.ReportCatalog(ctx, in.catalogRequest(), r.Authority)
 		if err != nil {
 			return err
+		}
+		// Old saved catalogs predate read attestations. They still require
+		// current execution authorization and an exact metadata comparison.
+		if out.Catalog.ReadProof == "" {
+			current.ReadProof = ""
 		}
 		if digest(current) != digest(out.Catalog) {
 			return failure("forbidden", "catalog_changed")
@@ -248,8 +260,15 @@ func (a *Adapter) authorizeResult(ctx context.Context, r sdk.Request, result sdk
 		return failure("forbidden", "result_invalid")
 	}
 	if independent {
+		if r.ResultProducer != nil {
+			reader, ok := source.(SharedResultReadSource)
+			if !ok || out.Result.Source.ReadProof == "" {
+				return &sdk.Error{Class: "unavailable", Code: sdk.ResultReadUnsupportedCode}
+			}
+			return reader.AuthorizeSharedReportResultRead(ctx, reportmodel.ReportQueryResultAuthorization{Query: in.queryRequest(), Result: *out.Result}, r.Authority, *r.ResultProducer)
+		}
 		reader, ok := source.(ResultReadSource)
-		if !ok {
+		if !ok || out.Result.Source.ReadProof == "" {
 			return &sdk.Error{Class: "unavailable", Code: sdk.ResultReadUnsupportedCode}
 		}
 		return reader.AuthorizeReportResultRead(ctx, reportmodel.ReportQueryResultAuthorization{Query: in.queryRequest(), Result: *out.Result}, r.Authority)
@@ -261,6 +280,11 @@ func (a *Adapter) authorizeResult(ctx context.Context, r sdk.Request, result sdk
 type ResultReadSource interface {
 	AuthorizeReportResultRead(context.Context, reportmodel.ReportQueryResultAuthorization, sdk.Authority) error
 	AuthorizeReportCatalogRead(context.Context, reportmodel.ReportCatalogReadAuthorization, sdk.Authority) error
+}
+
+type SharedResultReadSource interface {
+	AuthorizeSharedReportResultRead(context.Context, reportmodel.ReportQueryResultAuthorization, sdk.Authority, sdk.Authority) error
+	AuthorizeSharedReportCatalogRead(context.Context, reportmodel.ReportCatalogReadAuthorization, sdk.Authority, sdk.Authority) error
 }
 
 func (a *Adapter) ConversationToolResultReadAvailable(_ context.Context, authority sdk.Authority, key string) (bool, error) {

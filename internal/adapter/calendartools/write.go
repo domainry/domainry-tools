@@ -53,6 +53,13 @@ func (a *WriteAdapter) ConversationToolAvailable(ctx context.Context, authority 
 	return a.common().ConversationToolAvailable(ctx, authority, key)
 }
 
+func (a *WriteAdapter) ConversationToolResultReadAvailable(ctx context.Context, authority sdk.Authority, key string) (bool, error) {
+	if key == calendarwrite.InspectOperationKey {
+		return a.inspector().ConversationToolAvailable(ctx, authority, key)
+	}
+	return a.common().ConversationToolResultReadAvailable(ctx, authority, key)
+}
+
 func prepareWrite(key string, raw []byte) (accounttools.PreparedWrite, error) {
 	var in struct {
 		AccountKey       string          `json:"account_key"`

@@ -46,7 +46,7 @@ func (a *Adapter) Register(registry *tools.Registry) error {
 		return fmt.Errorf("schedule tool host configuration is incomplete")
 	}
 	for _, definition := range Definitions() {
-		if err := registry.Register(tools.Registration{Definition: definition, Authorize: a.authorize, Invoke: a.Invoke, Reconcile: a.Reconcile, AuthorizeResult: a.AuthorizeResult}); err != nil {
+		if err := registry.Register(tools.Registration{Definition: definition, Authorize: a.authorize, Invoke: a.Invoke, Reconcile: a.Reconcile, AuthorizeResult: a.AuthorizeResult, AuthorizeResultRead: a.AuthorizeResultRead}); err != nil {
 			return err
 		}
 	}

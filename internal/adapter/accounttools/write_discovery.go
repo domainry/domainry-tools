@@ -114,6 +114,10 @@ func (a *WriteAdapter) accounts(ctx context.Context, r sdk.Request) (sdk.Result,
 }
 
 func (a *WriteAdapter) authorizeAccounts(ctx context.Context, r sdk.Request, e writeEnvelope) error {
+	return a.authorizeAccountsForAction(ctx, r, e, integration.ActionIntegrationConnectionAccountsWrite)
+}
+
+func (a *WriteAdapter) authorizeAccountsForAction(ctx context.Context, r sdk.Request, e writeEnvelope, action string) error {
 	in, err := a.discovery([]byte(r.Call.Arguments))
 	if err != nil {
 		return a.failure("write_source_invalid")
@@ -126,7 +130,7 @@ func (a *WriteAdapter) authorizeAccounts(ctx context.Context, r sdk.Request, e w
 	if err != nil {
 		return err
 	}
-	ws, err := a.subject(ctx, r.Authority, integration.ActionIntegrationConnectionAccountsWrite)
+	ws, err := a.subject(ctx, r.Authority, action)
 	if err != nil {
 		return err
 	}

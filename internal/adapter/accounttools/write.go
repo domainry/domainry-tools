@@ -50,7 +50,7 @@ func (a *WriteAdapter) Register(reg *tools.Registry) error {
 		return fmt.Errorf("account write adapter is incomplete")
 	}
 	for _, d := range a.Family.Definitions {
-		registration := tools.Registration{Definition: d, Authorize: a.AuthorizeTool, Invoke: a.Invoke, Reconcile: a.Reconcile, AuthorizeResult: a.AuthorizeResult}
+		registration := tools.Registration{Definition: d, Authorize: a.AuthorizeTool, Invoke: a.Invoke, Reconcile: a.Reconcile, AuthorizeResult: a.AuthorizeResult, AuthorizeResultRead: a.AuthorizeResultRead}
 		if d.Effect == "write" {
 			registration.InspectOutcome = a.Reconcile
 		}
