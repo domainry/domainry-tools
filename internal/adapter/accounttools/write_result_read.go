@@ -42,9 +42,31 @@ func (a *WriteAdapter) AuthorizeResultRead(ctx context.Context, r sdk.Request, o
 		return err
 	}
 	source := envelope.Sources[0]
-	op := integration.ConnectionAccountWriteOperation{Operation: r.Definition.Key, ContractSHA256: a.Family.OperationSHA256(r.Definition.Key)}
+	operation := a.Family.operation(r.Definition.Key)
+	op := integration.ConnectionAccountWriteOperation{Operation: operation, ContractSHA256: a.Family.operationSHA256(r.Definition.Key)}
 	if op.Validate() != nil || !writeSourceMatches(source, subject, in.AccountKey, op) || source.AccountUpdatedAt != in.AccountUpdatedAt {
 		return a.failure("write_source_changed")
+	}
+	// Account access belongs to the current reader. The immutable owner ledger
+	// key belongs to the original actor, supplied only by the trusted source
+	// publication boundary. Prove the reader's scope before selecting that key.
+	access, err := a.Writes.AuthorizeConnectionAccountWrite(ctx, subject, in.AccountKey, op)
+	if err != nil || access.Source != source {
+		return a.failure("write_source_changed")
+	}
+	producer := r.Authority
+	if r.ResultProducer != nil {
+		producer = *r.ResultProducer
+		if !producer.Known || producer.RuntimeID != r.Authority.RuntimeID || producer.WorkspaceID != r.Authority.WorkspaceID || producer.UserID == "" {
+			return a.failure("write_source_invalid")
+		}
+	}
+	ledgerSubject := subject
+	if producer != r.Authority {
+		ledgerSubject, err = a.subject(ctx, producer, integration.ActionIntegrationConnectionAccountsRead)
+		if err != nil {
+			return err
+		}
 	}
 	identity, _ := json.Marshal([]string{r.Authority.RuntimeID, r.IdempotencyKey})
 	hash := sha256.Sum256(identity)
@@ -53,7 +75,7 @@ func (a *WriteAdapter) AuthorizeResultRead(ctx context.Context, r sdk.Request, o
 		return a.failure("write_source_invalid")
 	}
 	request := integration.ConnectionAccountWriteRequest{RequestID: "account-tool:" + hex.EncodeToString(hash[:]), ExpectedSource: source, Payload: payload}
-	original, err := a.Writes.ReadConnectionAccountWriteReceipt(ctx, subject, in.AccountKey, request)
+	original, err := a.Writes.ReadConnectionAccountWriteReceipt(ctx, ledgerSubject, in.AccountKey, request)
 	if err != nil || original.Status != integration.AccountWriteSucceeded || original.Source != source || original.InvocationID != out.ResourceID || original.RecordedAt != envelope.RecordedAt || len(original.Receipt) > 32<<10 {
 		return a.failure("write_source_changed")
 	}
@@ -63,6 +85,16 @@ func (a *WriteAdapter) AuthorizeResultRead(ctx context.Context, r sdk.Request, o
 	}
 	expected, err := json.Marshal(data)
 	if err != nil || !sameReceiptJSON(expected, envelope.Data) {
+		return a.failure("write_source_changed")
+	}
+	// The producer lookup rechecks its own scope. Re-resolve the actual reader
+	// as well so withdrawal during that lookup cannot retain released contents.
+	subject, err = a.subject(ctx, r.Authority, integration.ActionIntegrationConnectionAccountsRead)
+	if err != nil {
+		return err
+	}
+	access, err = a.Writes.AuthorizeConnectionAccountWrite(ctx, subject, in.AccountKey, op)
+	if err != nil || access.Source != source {
 		return a.failure("write_source_changed")
 	}
 	return ctx.Err()
@@ -89,7 +121,7 @@ func sameReceiptJSON(expected, actual []byte) bool {
 }
 
 func (a *WriteAdapter) ConversationToolResultReadAvailable(ctx context.Context, authority sdk.Authority, key string) (bool, error) {
-	if a.Accounts == nil || a.Writes == nil || a.Subject == nil || key != a.Family.AccountsKey && a.Family.OperationSHA256(key) == "" {
+	if a.Accounts == nil || a.Writes == nil || a.Subject == nil || key != a.Family.AccountsKey && a.Family.operationSHA256(key) == "" {
 		return false, nil
 	}
 	if _, err := a.subject(ctx, authority, integration.ActionIntegrationConnectionAccountsRead); err != nil {

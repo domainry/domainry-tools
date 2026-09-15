@@ -16,7 +16,7 @@ func Definitions() []sdk.Definition {
 	page := map[string]any{"type": "integer", "minimum": 1, "maximum": 25}
 	definition := func(key, action, description string, input any) sdk.Definition {
 		b, _ := json.Marshal(input)
-		return sdk.Definition{Key: key, Version: "1", ActionKey: "mail." + action, Description: description, InputSchema: b, OutputSchema: json.RawMessage(`{"type":"object"}`), Effect: "read", Idempotency: "natural", TimeoutMillis: 90000, MaxOutputBytes: 1048576}
+		return sdk.Definition{Key: key, Version: "1", ActionKey: "mail." + action, Description: description, InputSchema: b, OutputSchema: json.RawMessage(`{"type":"object"}`), Effect: "read", Idempotency: "natural", Parallelism: sdk.ToolParallelismIndependentRead, TimeoutMillis: 90000, MaxOutputBytes: 1048576}
 	}
 	return []sdk.Definition{
 		definition(AccountsKey, "accounts", "Discover current-user mail accounts authorized for a chosen operation (default mail_list). Basic grants may allow only headers. Use connector_key google_workspace with gmail query syntax or microsoft_365 with graph-kql. Follow next_cursor while complete=false.", object(map[string]any{"operation": map[string]any{"type": "string", "enum": []string{mail.ListOperationKey, mail.SearchOperationKey, mail.ReadOperationKey}}, "limit": map[string]any{"type": "integer", "minimum": 1, "maximum": 10}, "cursor": str(512)})),

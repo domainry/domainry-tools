@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	sdk "github.com/domainry/domainry-tools-sdk"
 	"testing"
 	"time"
+
+	sdk "github.com/domainry/domainry-tools-sdk"
 )
 
 func TestSelectionsValidateAndReauthorize(t *testing.T) {
@@ -55,6 +56,31 @@ func TestSelectionsValidateAndReauthorize(t *testing.T) {
 	allowed = true
 	if _, e := selected.InvokeConversationTool(t.Context(), in); e == nil {
 		t.Fatal("changed definition accepted")
+	}
+}
+
+func TestRegistrationAcceptsOnlyExplicitReadParallelism(t *testing.T) {
+	base := sdk.Definition{Key: "read", Version: "1", Description: "Read", ActionKey: "records.read", Effect: "read", Idempotency: "natural", InputSchema: json.RawMessage(`{"type":"object"}`), OutputSchema: json.RawMessage(`{"type":"object"}`), TimeoutMillis: 1000, MaxOutputBytes: 1024}
+	handler := func(context.Context, sdk.Request) (sdk.Result, error) {
+		return sdk.Result{Status: "completed", Content: json.RawMessage(`{}`)}, nil
+	}
+	authorize := func(context.Context, sdk.Request) (sdk.Authorization, error) {
+		return sdk.Authorization{Granted: true}, nil
+	}
+	valid := base
+	valid.Parallelism = sdk.ToolParallelismIndependentRead
+	if err := NewRegistry().Register(Registration{Definition: valid, Authorize: authorize, Invoke: handler}); err != nil {
+		t.Fatal(err)
+	}
+	unknown := base
+	unknown.Parallelism = "parallel"
+	if err := NewRegistry().Register(Registration{Definition: unknown, Authorize: authorize, Invoke: handler}); err == nil {
+		t.Fatal("unknown parallelism accepted")
+	}
+	write := base
+	write.Key, write.ActionKey, write.Effect, write.Idempotency, write.Parallelism = "write", "records.write", "write", "key", sdk.ToolParallelismIndependentRead
+	if err := NewRegistry().Register(Registration{Definition: write, Authorize: authorize, Invoke: handler, Reconcile: handler}); err == nil {
+		t.Fatal("write declared as independent read")
 	}
 }
 

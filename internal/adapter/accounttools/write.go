@@ -29,8 +29,12 @@ type WriteFamily struct {
 	Name, AccountsKey, DefaultOperation string
 	Definitions                         []sdk.Definition
 	Operations                          []string
+	OperationKey                        func(string) string
 	OperationSHA256                     func(string) string
 	Prepare                             func(string, []byte) (PreparedWrite, error)
+	// BeforeWrite performs read-only owner validation immediately before a new
+	// effect. It is never called during receipt-only reconciliation.
+	BeforeWrite func(context.Context, sdk.Request, PreparedWrite) error
 }
 
 type PreparedWrite struct {
@@ -43,6 +47,17 @@ type PreparedWrite struct {
 type WriteAdapter struct {
 	WritePorts
 	Family WriteFamily
+}
+
+func (f WriteFamily) operation(toolKey string) string {
+	if f.OperationKey != nil {
+		return f.OperationKey(toolKey)
+	}
+	return toolKey
+}
+
+func (f WriteFamily) operationSHA256(toolKey string) string {
+	return f.OperationSHA256(f.operation(toolKey))
 }
 
 func (a *WriteAdapter) Register(reg *tools.Registry) error {
@@ -87,7 +102,8 @@ func (a *WriteAdapter) access(ctx context.Context, r sdk.Request, in PreparedWri
 	if err != nil {
 		return s, integration.ConnectionAccountWriteSource{}, err
 	}
-	op := integration.ConnectionAccountWriteOperation{Operation: r.Definition.Key, ContractSHA256: a.Family.OperationSHA256(r.Definition.Key)}
+	operation := a.Family.operation(r.Definition.Key)
+	op := integration.ConnectionAccountWriteOperation{Operation: operation, ContractSHA256: a.Family.operationSHA256(r.Definition.Key)}
 	if a.Writes == nil || op.ContractSHA256 == "" {
 		return s, integration.ConnectionAccountWriteSource{}, a.failure("write_unavailable")
 	}
@@ -175,6 +191,21 @@ func (a *WriteAdapter) execute(ctx context.Context, r sdk.Request, receiptOnly b
 	s, source, err := a.access(ctx, r, in)
 	if err != nil {
 		return sdk.Result{}, err
+	}
+	if !receiptOnly && a.Family.BeforeWrite != nil {
+		if err := a.Family.BeforeWrite(ctx, r, in); err != nil {
+			return sdk.Result{}, err
+		}
+		auth, err := a.AuthorizeTool(ctx, r)
+		if err != nil || !auth.Granted || auth.ConfirmationRequired {
+			return sdk.Result{}, a.failure("write_access_denied")
+		}
+		// The validation above may perform remote reads. Bind the effect to the
+		// same current account revision immediately before dispatch.
+		currentSubject, currentSource, err := a.access(ctx, r, in)
+		if err != nil || currentSubject != s || currentSource != source {
+			return sdk.Result{}, a.failure("write_account_changed")
+		}
 	}
 	identity, _ := json.Marshal([]string{r.Authority.RuntimeID, r.IdempotencyKey})
 	digest := sha256.Sum256(identity)

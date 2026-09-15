@@ -7,12 +7,12 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"github.com/domainry/domainry-tools-sdk/schema"
 	"sort"
 	"sync"
 	"time"
 
 	sdk "github.com/domainry/domainry-tools-sdk"
+	"github.com/domainry/domainry-tools-sdk/schema"
 )
 
 type Handler func(context.Context, sdk.Request) (sdk.Result, error)
@@ -62,6 +62,10 @@ func (r *Registry) Register(in Registration) error {
 	}
 	if in.Definition.Effect != "read" && in.Definition.Effect != "write" {
 		return fmt.Errorf("invalid tool effect")
+	}
+	if (in.Definition.Parallelism != "" && in.Definition.Parallelism != sdk.ToolParallelismIndependentRead) ||
+		(in.Definition.Parallelism == sdk.ToolParallelismIndependentRead && in.Definition.Effect != "read") {
+		return fmt.Errorf("invalid tool parallelism")
 	}
 	if in.Definition.Effect == "write" && in.Reconcile == nil {
 		return fmt.Errorf("write tool %q requires reconciliation", in.Definition.Key)

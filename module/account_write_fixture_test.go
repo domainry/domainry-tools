@@ -27,6 +27,7 @@ type accountWriteFixture struct {
 	status                      string
 	modifyResult                func(*integration.ConnectionAccountWriteResult)
 	afterWrite                  func()
+	afterLookup                 func()
 }
 
 func newAccountWriteFixture() *accountWriteFixture {
@@ -113,7 +114,11 @@ func (f *accountWriteFixture) ReadConnectionAccountWriteReceipt(ctx context.Cont
 			return integration.ConnectionAccountWriteResult{Source: r.ExpectedSource, Status: integration.AccountWriteNotFound}, nil
 		}
 	}
-	return f.result(ctx, s, key, r)
+	out, err := f.result(ctx, s, key, r)
+	if f.afterLookup != nil {
+		f.afterLookup()
+	}
+	return out, err
 }
 
 func writeDefinitions() []sdk.Definition {

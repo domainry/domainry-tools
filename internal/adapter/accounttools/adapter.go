@@ -40,17 +40,33 @@ type Family struct {
 	AccountsKey      string
 	DefaultOperation string
 	Operations       []string
-	OperationSHA256  func(string) string
-	Prepare          func(string, []byte) (Prepared, error)
+	// OperationKey maps a public Agent tool key to its owner operation key.
+	// Nil preserves the historical one-to-one mapping.
+	OperationKey            func(string) string
+	OperationSHA256         func(string) string
+	Prepare                 func(string, []byte) (Prepared, error)
+	IncludeAccountUpdatedAt bool
 }
 type Prepared struct {
-	AccountKey string
-	Payload    any
-	Present    func([]byte) (any, error)
+	AccountKey       string
+	AccountUpdatedAt string
+	Payload          any
+	Present          func([]byte) (any, error)
 }
 type Adapter struct {
 	Ports
 	Family Family
+}
+
+func (f Family) operation(toolKey string) string {
+	if f.OperationKey != nil {
+		return f.OperationKey(toolKey)
+	}
+	return toolKey
+}
+
+func (f Family) operationSHA256(toolKey string) string {
+	return f.OperationSHA256(f.operation(toolKey))
 }
 
 func (a *Adapter) Register(reg *tools.Registry) error {
@@ -132,7 +148,7 @@ func (a *Adapter) Invoke(ctx context.Context, r sdk.Request) (sdk.Result, error)
 		return a.accounts(ctx, r, in)
 	}
 	key := r.Definition.Key
-	if a.Family.OperationSHA256(key) == "" {
+	if a.Family.operationSHA256(key) == "" {
 		return sdk.Result{}, a.toolError("operation_invalid")
 	}
 	prepared, err := a.Family.Prepare(key, []byte(r.Call.Arguments))
@@ -146,7 +162,8 @@ func (a *Adapter) Invoke(ctx context.Context, r sdk.Request) (sdk.Result, error)
 	if err != nil {
 		return sdk.Result{}, err
 	}
-	op := integration.ConnectionAccountReadOperation{Operation: key, ContractSHA256: a.Family.OperationSHA256(key)}
+	operation := a.Family.operation(key)
+	op := integration.ConnectionAccountReadOperation{Operation: operation, ContractSHA256: a.Family.operationSHA256(key)}
 	access, err := a.Reads.AuthorizeConnectionAccountRead(ctx, s, prepared.AccountKey, op)
 	if err != nil {
 		return sdk.Result{}, a.toolError("account_read_denied")
@@ -161,16 +178,16 @@ func (a *Adapter) Invoke(ctx context.Context, r sdk.Request) (sdk.Result, error)
 	if err != nil {
 		return sdk.Result{}, err
 	}
-	identity, _ := json.Marshal([]string{r.Authority.RuntimeID, r.Authority.WorkspaceID, r.Authority.UserID, r.ConversationID, r.RunID, r.Call.ID, key, string(b)})
+	identity, _ := json.Marshal([]string{r.Authority.RuntimeID, r.Authority.WorkspaceID, r.Authority.UserID, r.ConversationID, r.RunID, r.Call.ID, operation, string(b)})
 	hash := sha256.Sum256(identity)
-	out, err := a.Reads.ReadConnectionAccount(ctx, s, prepared.AccountKey, integration.ConnectionAccountReadRequest{RequestID: a.Family.Name + "-tool:" + hex.EncodeToString(hash[:]), Operation: key, ContractSHA256: op.ContractSHA256, Payload: b})
+	out, err := a.Reads.ReadConnectionAccount(ctx, s, prepared.AccountKey, integration.ConnectionAccountReadRequest{RequestID: a.Family.Name + "-tool:" + hex.EncodeToString(hash[:]), Operation: operation, ContractSHA256: op.ContractSHA256, Payload: b})
 	if err != nil {
 		return sdk.Result{}, a.toolError("read_failed")
 	}
 	if !out.PayloadAvailable {
 		return sdk.Result{Status: "failed", ErrorCode: a.Family.Name + ".response_not_replayable"}, nil
 	}
-	if out.Source != access.Source || len(out.Payload) > 4<<20 {
+	if out.Source != access.Source || prepared.AccountUpdatedAt != "" && out.Source.AccountUpdatedAt != prepared.AccountUpdatedAt || len(out.Payload) > 4<<20 {
 		return sdk.Result{}, a.toolError("source_invalid")
 	}
 	data, err := prepared.Present(out.Payload)
@@ -199,10 +216,11 @@ func sourceMatches(source integration.ConnectionAccountReadSource, s integration
 }
 
 type accountSummary struct {
-	Key          string `json:"key"`
-	Name         string `json:"name"`
-	ConnectorKey string `json:"connector_key"`
-	ProviderKey  string `json:"provider_key"`
+	Key              string `json:"key"`
+	Name             string `json:"name"`
+	ConnectorKey     string `json:"connector_key"`
+	ProviderKey      string `json:"provider_key"`
+	AccountUpdatedAt string `json:"account_updated_at,omitempty"`
 }
 type accountsPage struct {
 	Items      []accountSummary `json:"items"`
@@ -220,7 +238,8 @@ func (a *Adapter) accounts(ctx context.Context, r sdk.Request, in discoveryArgum
 	if opKey == "" {
 		opKey = a.Family.DefaultOperation
 	}
-	op := integration.ConnectionAccountReadOperation{Operation: opKey, ContractSHA256: a.Family.OperationSHA256(opKey)}
+	operation := a.Family.operation(opKey)
+	op := integration.ConnectionAccountReadOperation{Operation: operation, ContractSHA256: a.Family.operationSHA256(opKey)}
 	if op.ContractSHA256 == "" || in.Limit < 0 || in.Limit > 10 || len(in.Cursor) > 512 {
 		return sdk.Result{}, fmt.Errorf("invalid account discovery page")
 	}
@@ -274,7 +293,11 @@ func (a *Adapter) accounts(ctx context.Context, r sdk.Request, in discoveryArgum
 		if !sourceMatches(access.Source, readSubject, v.Key, op) || access.Source.AccountUpdatedAt != v.UpdatedAt || access.Source.ConnectorKey != v.ConnectorKey || access.Source.ProviderKey != v.ProviderKey {
 			return sdk.Result{}, a.toolError("source_changed")
 		}
-		page.Items = append(page.Items, accountSummary{Key: v.Key, Name: shortText(v.Name, 256), ConnectorKey: v.ConnectorKey, ProviderKey: v.ProviderKey})
+		summary := accountSummary{Key: v.Key, Name: shortText(v.Name, 256), ConnectorKey: v.ConnectorKey, ProviderKey: v.ProviderKey}
+		if a.Family.IncludeAccountUpdatedAt {
+			summary.AccountUpdatedAt = v.UpdatedAt
+		}
+		page.Items = append(page.Items, summary)
 		sources = append(sources, access.Source)
 	}
 	if !page.Complete {
@@ -344,12 +367,13 @@ func (a *Adapter) authorizeResultSource(ctx context.Context, r sdk.Request, out 
 	}
 	var in discoveryArguments
 	accountKey := ""
+	accountUpdatedAt := ""
 	if a.Family.AccountsKey != "" && r.Definition.Key == a.Family.AccountsKey {
 		if decode([]byte(r.Call.Arguments), &in) != nil {
 			return a.toolError("source_invalid")
 		}
 	} else {
-		if a.Family.OperationSHA256(r.Definition.Key) == "" {
+		if a.Family.operationSHA256(r.Definition.Key) == "" {
 			return a.toolError("source_invalid")
 		}
 		prepared, err := a.Family.Prepare(r.Definition.Key, []byte(r.Call.Arguments))
@@ -357,6 +381,7 @@ func (a *Adapter) authorizeResultSource(ctx context.Context, r sdk.Request, out 
 			return a.toolError("source_invalid")
 		}
 		accountKey = prepared.AccountKey
+		accountUpdatedAt = prepared.AccountUpdatedAt
 	}
 	opKey := r.Definition.Key
 	if a.Family.AccountsKey != "" && opKey == a.Family.AccountsKey {
@@ -389,19 +414,20 @@ func (a *Adapter) authorizeResultSource(ctx context.Context, r sdk.Request, out 
 		}
 		for i, v := range page.Items {
 			current, found := visible[v.Key]
-			if !found || current.UpdatedAt != e.Sources[i].AccountUpdatedAt || current.ConnectorKey != v.ConnectorKey || current.ProviderKey != v.ProviderKey || shortText(current.Name, 256) != v.Name || e.Sources[i].ConnectionKey != v.Key || e.Sources[i].ConnectorKey != v.ConnectorKey || e.Sources[i].ProviderKey != v.ProviderKey {
+			if !found || current.UpdatedAt != e.Sources[i].AccountUpdatedAt || current.ConnectorKey != v.ConnectorKey || current.ProviderKey != v.ProviderKey || shortText(current.Name, 256) != v.Name || e.Sources[i].ConnectionKey != v.Key || e.Sources[i].ConnectorKey != v.ConnectorKey || e.Sources[i].ProviderKey != v.ProviderKey || a.Family.IncludeAccountUpdatedAt && v.AccountUpdatedAt != current.UpdatedAt {
 				return a.toolError("source_invalid")
 			}
 		}
 	} else if len(e.Sources) != 1 || e.Sources[0].ConnectionKey != accountKey {
 		return a.toolError("source_invalid")
 	}
-	op := integration.ConnectionAccountReadOperation{Operation: opKey, ContractSHA256: a.Family.OperationSHA256(opKey)}
+	operation := a.Family.operation(opKey)
+	op := integration.ConnectionAccountReadOperation{Operation: operation, ContractSHA256: a.Family.operationSHA256(opKey)}
 	if op.ContractSHA256 == "" {
 		return a.toolError("source_invalid")
 	}
 	for _, source := range e.Sources {
-		if !sourceMatches(source, s, source.ConnectionKey, op) {
+		if !sourceMatches(source, s, source.ConnectionKey, op) || accountUpdatedAt != "" && source.AccountUpdatedAt != accountUpdatedAt {
 			return a.toolError("source_invalid")
 		}
 		current, err := a.Reads.AuthorizeConnectionAccountRead(ctx, s, source.ConnectionKey, op)

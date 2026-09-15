@@ -14,7 +14,7 @@ func (a *Adapter) ConversationToolAvailable(ctx context.Context, authority sdk.A
 	keys := []string{key}
 	if a.Family.AccountsKey != "" && key == a.Family.AccountsKey {
 		keys = a.Family.Operations
-	} else if a.Family.OperationSHA256(key) == "" {
+	} else if a.Family.operationSHA256(key) == "" {
 		return false, nil
 	}
 	if a.Accounts == nil || a.Reads == nil {
@@ -37,7 +37,8 @@ func (a *Adapter) ConversationToolAvailable(ctx context.Context, authority sdk.A
 			continue
 		}
 		for _, opKey := range keys {
-			op := integration.ConnectionAccountReadOperation{Operation: opKey, ContractSHA256: a.Family.OperationSHA256(opKey)}
+			operation := a.Family.operation(opKey)
+			op := integration.ConnectionAccountReadOperation{Operation: operation, ContractSHA256: a.Family.operationSHA256(opKey)}
 			access, err := a.Reads.AuthorizeConnectionAccountRead(ctx, readSubject, account.Key, op)
 			if err == nil && sourceMatches(access.Source, readSubject, account.Key, op) && access.Source.AccountUpdatedAt == account.UpdatedAt && access.Source.ConnectorKey == account.ConnectorKey && access.Source.ProviderKey == account.ProviderKey {
 				return true, nil

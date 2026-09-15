@@ -31,7 +31,11 @@ func Definitions(s Spec) []sdk.Definition {
 		if op == "save" {
 			effect, idem = "write", "key"
 		}
-		return sdk.Definition{Key: s.Prefix + "_" + op, Version: "1", ActionKey: s.Prefix + "." + op, Description: description, InputSchema: raw, OutputSchema: json.RawMessage(`{"type":"object"}`), Effect: effect, Idempotency: idem, TimeoutMillis: 15000, MaxOutputBytes: 262144}
+		parallelism := ""
+		if effect == "read" {
+			parallelism = sdk.ToolParallelismIndependentRead
+		}
+		return sdk.Definition{Key: s.Prefix + "_" + op, Version: "1", ActionKey: s.Prefix + "." + op, Description: description, InputSchema: raw, OutputSchema: json.RawMessage(`{"type":"object"}`), Effect: effect, Idempotency: idem, Parallelism: parallelism, TimeoutMillis: 15000, MaxOutputBytes: 262144}
 	}
 	str := func(max int) any { return map[string]any{"type": "string", "maxLength": max} }
 	object := func(properties map[string]any, required ...string) any {
@@ -48,7 +52,7 @@ func (a *Adapter) Register(reg *tools.Registry) error {
 		return fmt.Errorf("record tool adapter incomplete")
 	}
 	for _, d := range Definitions(a.Spec) {
-		r := tools.Registration{Definition: d, Authorize: a.Authorize, Invoke: a.Invoke, Reconcile: a.Reconcile}
+		r := tools.Registration{Definition: d, Authorize: a.Authorize, Invoke: a.Invoke, Reconcile: a.Reconcile, AuthorizeResultRead: a.AuthorizeResultRead}
 		if d.Effect == "write" {
 			r.InspectOutcome = a.Reconcile
 		}

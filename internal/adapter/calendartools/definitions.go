@@ -17,7 +17,7 @@ func Definitions() []sdk.Definition {
 	page := map[string]any{"type": "integer", "minimum": 1, "maximum": 25}
 	definition := func(key, action, description string, input any) sdk.Definition {
 		raw, _ := json.Marshal(input)
-		return sdk.Definition{Key: key, Version: "1", ActionKey: "calendar." + action, Description: description, InputSchema: raw, OutputSchema: json.RawMessage(`{"type":"object"}`), Effect: "read", Idempotency: "natural", TimeoutMillis: 90000, MaxOutputBytes: 1048576}
+		return sdk.Definition{Key: key, Version: "1", ActionKey: "calendar." + action, Description: description, InputSchema: raw, OutputSchema: json.RawMessage(`{"type":"object"}`), Effect: "read", Idempotency: "natural", Parallelism: sdk.ToolParallelismIndependentRead, TimeoutMillis: 90000, MaxOutputBytes: 1048576}
 	}
 	return []sdk.Definition{
 		definition(AccountsKey, "accounts", "Discover current-user calendar accounts authorized for a chosen read operation. Follow next_cursor while complete=false. Account discovery grants no access to other operations.", object(map[string]any{"operation": map[string]any{"type": "string", "enum": []string{calendar.ListOperationKey, calendar.EventsOperationKey, calendar.EventOperationKey, calendar.AvailabilityOperationKey}}, "cursor": str(512), "limit": map[string]any{"type": "integer", "minimum": 1, "maximum": 10}})),

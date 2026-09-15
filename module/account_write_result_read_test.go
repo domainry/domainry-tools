@@ -12,6 +12,63 @@ import (
 	integration "github.com/domainry/domainry-integration-sdk"
 )
 
+func TestSharedAccountWriteResultReadUsesOriginalActorAfterCheckingCurrentReader(t *testing.T) {
+	for _, key := range []string{calendarwrite.CreateOperationKey, calendarwrite.UpdateOperationKey, mailwrite.SendOperationKey, mailwrite.ReplyOperationKey} {
+		t.Run(key, func(t *testing.T) {
+			f := newAccountWriteFixture()
+			f.strictReceipts = true
+			f.accounts[0].Scope, f.accounts[0].OwnerUserID = integration.ConnectionAccountScopeWorkspace, ""
+			selected := f.selection(t)
+			request := writeRequest(t, key, writePayload(key))
+			request.Authority.RoleKey = "professional"
+			saved, err := selected.InvokeConversationTool(t.Context(), request)
+			if err != nil || len(f.writes) != 1 {
+				t.Fatal("original actor did not execute", err)
+			}
+			producer := request.Authority
+			request.Authority.UserID, request.Authority.RoleKey = "bob", "reader"
+			request.ResultProducer = &producer
+			request.Confirmation, request.ConfirmationID = nil, ""
+			approvals := f.verifyCalls
+			f.writeAccess, f.toolAllowed, f.approved = integration.ConnectionAccountAccess{}, false, false
+			if err := selected.AuthorizeConversationToolResultRead(t.Context(), request, saved); err != nil {
+				t.Fatal("authorized workspace reader could not verify the original actor's receipt", err)
+			}
+			if len(f.writes) != 1 || f.verifyCalls != approvals || len(f.lookups) != 1 || !reflect.DeepEqual(f.lookups[0], f.writes[0]) {
+				t.Fatal("shared reading changed the original request or repeated an effect/approval")
+			}
+			for _, scenario := range []string{"reader_scope", "personal_account", "unknown_producer", "wrong_runtime", "wrong_workspace", "wrong_actor", "withdraw_during_lookup"} {
+				t.Run(scenario, func(t *testing.T) {
+					priorAccess, priorAccount := f.readAccess, f.accounts[0]
+					changed := request
+					changedProducer := producer
+					changed.ResultProducer = &changedProducer
+					defer func() { f.readAccess, f.accounts[0], f.afterLookup = priorAccess, priorAccount, nil }()
+					switch scenario {
+					case "reader_scope":
+						f.readAccess.Workspace = false
+					case "personal_account":
+						f.accounts[0].Scope, f.accounts[0].OwnerUserID = integration.ConnectionAccountScopePersonal, producer.UserID
+					case "unknown_producer":
+						changedProducer.Known = false
+					case "wrong_runtime":
+						changedProducer.RuntimeID = "other"
+					case "wrong_workspace":
+						changedProducer.WorkspaceID = "other"
+					case "wrong_actor":
+						changedProducer.UserID = "mallory"
+					case "withdraw_during_lookup":
+						f.afterLookup = func() { f.readAccess.Workspace = false }
+					}
+					if err := selected.AuthorizeConversationToolResultRead(t.Context(), changed, saved); err == nil {
+						t.Fatal("shared receipt accepted an unauthorized reader or incorrect original actor")
+					}
+				})
+			}
+		})
+	}
+}
+
 func TestAccountWriteResultReadUsesOriginalLedgerWithoutExecutionOrApproval(t *testing.T) {
 	for _, key := range []string{calendarwrite.CreateOperationKey, calendarwrite.UpdateOperationKey, mailwrite.SendOperationKey, mailwrite.ReplyOperationKey} {
 		t.Run(key, func(t *testing.T) {

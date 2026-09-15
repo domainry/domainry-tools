@@ -38,7 +38,7 @@ func (a *WriteAdapter) discovery(raw []byte) (discoveryArguments, error) {
 	if in.Limit == 0 {
 		in.Limit = 5
 	}
-	if a.Family.OperationSHA256(in.Operation) == "" || in.Limit < 1 || in.Limit > 10 || len(in.Cursor) > 512 {
+	if a.Family.operationSHA256(in.Operation) == "" || in.Limit < 1 || in.Limit > 10 || len(in.Cursor) > 512 {
 		return in, fmt.Errorf("invalid write account discovery")
 	}
 	return in, nil
@@ -82,7 +82,8 @@ func (a *WriteAdapter) accounts(ctx context.Context, r sdk.Request) (sdk.Result,
 	end := min(len(accounts), offset+in.Limit)
 	page := writeAccountsPage{Items: []writeAccountSummary{}, Operation: in.Operation, Complete: end == len(accounts)}
 	sources := []integration.ConnectionAccountWriteSource{}
-	op := integration.ConnectionAccountWriteOperation{Operation: in.Operation, ContractSHA256: a.Family.OperationSHA256(in.Operation)}
+	operation := a.Family.operation(in.Operation)
+	op := integration.ConnectionAccountWriteOperation{Operation: operation, ContractSHA256: a.Family.operationSHA256(in.Operation)}
 	for _, v := range accounts[offset:end] {
 		if !listedAccount(v, ls) {
 			continue
@@ -144,7 +145,8 @@ func (a *WriteAdapter) authorizeAccountsForAction(ctx context.Context, r sdk.Req
 			visible[v.Key] = v
 		}
 	}
-	op := integration.ConnectionAccountWriteOperation{Operation: in.Operation, ContractSHA256: a.Family.OperationSHA256(in.Operation)}
+	operation := a.Family.operation(in.Operation)
+	op := integration.ConnectionAccountWriteOperation{Operation: operation, ContractSHA256: a.Family.operationSHA256(in.Operation)}
 	seen := map[string]bool{}
 	for i, v := range page.Items {
 		account, ok := visible[v.Key]
@@ -167,7 +169,7 @@ func (a *WriteAdapter) ConversationToolAvailable(ctx context.Context, authority 
 	keys := []string{key}
 	if key == a.Family.AccountsKey {
 		keys = a.Family.Operations
-	} else if a.Family.OperationSHA256(key) == "" {
+	} else if a.Family.operationSHA256(key) == "" {
 		return false, nil
 	}
 	ls, err := a.subject(ctx, authority, integration.ActionIntegrationConnectionAccountsList)
@@ -187,7 +189,8 @@ func (a *WriteAdapter) ConversationToolAvailable(ctx context.Context, authority 
 			continue
 		}
 		for _, opKey := range keys {
-			op := integration.ConnectionAccountWriteOperation{Operation: opKey, ContractSHA256: a.Family.OperationSHA256(opKey)}
+			operation := a.Family.operation(opKey)
+			op := integration.ConnectionAccountWriteOperation{Operation: operation, ContractSHA256: a.Family.operationSHA256(opKey)}
 			access, err := a.Writes.AuthorizeConnectionAccountWrite(ctx, ws, v.Key, op)
 			if err == nil && writeSourceMatches(access.Source, ws, v.Key, op) && access.Source.AccountUpdatedAt == v.UpdatedAt && access.Source.ConnectorKey == v.ConnectorKey && access.Source.ProviderKey == v.ProviderKey {
 				return true, nil

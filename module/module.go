@@ -10,6 +10,7 @@ import (
 	analysistools "github.com/domainry/domainry-tools/internal/adapter/analysistools"
 	calendartools "github.com/domainry/domainry-tools/internal/adapter/calendartools"
 	mailtools "github.com/domainry/domainry-tools/internal/adapter/mailtools"
+	mcptools "github.com/domainry/domainry-tools/internal/adapter/mcptools"
 	recordtools "github.com/domainry/domainry-tools/internal/adapter/recordtools"
 	reporttools "github.com/domainry/domainry-tools/internal/adapter/reporttools"
 	scheduletools "github.com/domainry/domainry-tools/internal/adapter/scheduletools"
@@ -64,6 +65,11 @@ type MailWriteAdapter = mailtools.WriteAdapter
 
 func CalendarWriteDefinitions() []toolsdk.Definition { return calendartools.WriteDefinitions() }
 func MailWriteDefinitions() []toolsdk.Definition     { return mailtools.WriteDefinitions() }
+
+type MCPAdapter = mcptools.Adapter
+type MCPSubjectResolver = mcptools.SubjectResolver
+
+func MCPDefinitions() []toolsdk.Definition { return mcptools.Definitions() }
 
 type WebAdapter = webtools.Adapter
 type WebSubjectResolver = webtools.SubjectResolver
