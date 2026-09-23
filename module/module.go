@@ -16,9 +16,17 @@ import (
 	scheduletools "github.com/domainry/domainry-tools/internal/adapter/scheduletools"
 	webtools "github.com/domainry/domainry-tools/internal/adapter/webtools"
 	application "github.com/domainry/domainry-tools/internal/application/tool"
+	conversationassembly "github.com/domainry/domainry-tools/internal/assembly/conversation"
 	preferences "github.com/domainry/domainry-tools/internal/assembly/preferences"
 	preferenceshttp "github.com/domainry/domainry-tools/internal/transport/http/preferences"
 )
+
+// NewConversationToolFactory returns the in-process Tools implementation.
+// Products select it at their outer composition root and pass only the SDK
+// contract to Runtime.
+func NewConversationToolFactory() toolsdk.ConversationToolFactory {
+	return conversationassembly.NewFactory()
+}
 
 func OpenSettings(ctx context.Context, host modulehost.Persistence, catalog toolsdk.Catalog, connections toolsdk.ConnectionAvailability) (toolsdk.SettingsBinding, error) {
 	return preferences.Open(ctx, host, catalog, connections)

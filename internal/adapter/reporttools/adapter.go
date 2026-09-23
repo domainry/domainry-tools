@@ -22,14 +22,9 @@ import (
 	tools "github.com/domainry/domainry-tools/internal/application/tool"
 )
 
-// Source is a trusted host port over public Report DTOs and neutral caller
-// identity. The host resolves current authority; no token or SQL crosses it.
-type Source interface {
-	BusinessSourceIdentity() string
-	ReportCatalog(context.Context, reportmodel.ReportCatalogRequest, sdk.Authority) (reportmodel.ReportCatalog, error)
-	QueryReport(context.Context, reportmodel.ReportObjectSQLRequest, sdk.Authority) (reportmodel.ReportQueryResult, error)
-	AuthorizeReportResult(context.Context, reportmodel.ReportQueryResultAuthorization, sdk.Authority) error
-}
+// Source is owned by the public Tools SDK so a product host can supply the
+// port without importing this implementation package.
+type Source = sdk.ReportSource
 
 type Adapter struct {
 	// Source is resolved on each use so a deferred host can bind before workers

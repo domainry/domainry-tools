@@ -21,12 +21,7 @@ const Key = sdk.AnalysisRunToolKey
 
 func Definitions() []sdk.Definition { return sdk.AnalysisDefinitions() }
 
-type Source interface {
-	BusinessSourceIdentity() string
-	AnalysisCatalog(context.Context, model.AnalysisCatalogRequest, sdk.Authority) (model.AnalysisCatalog, error)
-	RunAnalysis(context.Context, model.AnalysisRequest, sdk.Authority) (model.AnalysisResult, error)
-	AuthorizeAnalysisResult(context.Context, model.AnalysisResultAuthorization, sdk.Authority) error
-}
+type Source = sdk.AnalysisSource
 
 type Adapter struct {
 	Source    func() Source
