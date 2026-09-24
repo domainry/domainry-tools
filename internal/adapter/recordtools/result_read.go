@@ -7,7 +7,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/domainry/domainry-knowledge/contract"
+	"github.com/domainry/domainry-knowledge-sdk/contract"
 	sdk "github.com/domainry/domainry-tools-sdk"
 	"github.com/domainry/domainry-tools-sdk/schema"
 )

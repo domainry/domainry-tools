@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/domainry/domainry-knowledge/contract"
+	"github.com/domainry/domainry-knowledge-sdk/contract"
 	sdk "github.com/domainry/domainry-tools-sdk"
 	tools "github.com/domainry/domainry-tools/internal/application/tool"
 )
