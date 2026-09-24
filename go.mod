@@ -14,7 +14,7 @@ require (
 	github.com/domainry/domainry-foundation v0.1.38
 	github.com/domainry/domainry-identity-sdk v0.1.14
 	github.com/domainry/domainry-integration-sdk v0.1.9
-	github.com/domainry/domainry-knowledge-sdk v0.1.1
+	github.com/domainry/domainry-knowledge-sdk v0.1.2
 	github.com/domainry/domainry-orm v0.1.31
 	github.com/domainry/domainry-report-sdk v0.1.13
 	modernc.org/sqlite v1.57.0

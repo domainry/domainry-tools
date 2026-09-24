@@ -10,8 +10,8 @@ github.com/domainry/domainry-identity-sdk v0.1.14 h1:g4yA2vBz4YAMC3UEyaiy8VXlFex
 github.com/domainry/domainry-identity-sdk v0.1.14/go.mod h1:I3jCembUi1Cg07zWq0h9pFk2fzEcoM224GzMqBNZ00s=
 github.com/domainry/domainry-integration-sdk v0.1.9 h1:g5+7Aglf2IpwcDjg2znq+LcgoWMIuc9KMB6Od8kmJGo=
 github.com/domainry/domainry-integration-sdk v0.1.9/go.mod h1:bAxENzxiM3DVeyekkQsXaYnkPxBxYzFaRGmt8qNe3bI=
-github.com/domainry/domainry-knowledge-sdk v0.1.1 h1:BMz2QkcAvGfoezd/xu3preSU7Ax9Q41dhvi6Ghic1BA=
-github.com/domainry/domainry-knowledge-sdk v0.1.1/go.mod h1:ecFNsLU4aeZHASBNy3RhEf1U/QrR4Xnpm6HfBw0Jjhs=
+github.com/domainry/domainry-knowledge-sdk v0.1.2 h1:7CckfnIm/v6FQdwjKw+OoBFxOJKTzk1nioW3xi4u8nA=
+github.com/domainry/domainry-knowledge-sdk v0.1.2/go.mod h1:aOAx9bCSylhrdUFGH6p3/R5y7L5t+P6Z8u/A0cO9v/g=
 github.com/domainry/domainry-notification-sdk v0.1.3 h1:PmDBQMoQkSd7DFnD+3qlGWmtCXk0SibgdGwRO15wdNs=
 github.com/domainry/domainry-notification-sdk v0.1.3/go.mod h1:GNOM4yg+nBp5qTVFEpvfZU2T4DDWqgX4tcGRkm5myWI=
 github.com/domainry/domainry-orm v0.1.31 h1:fovrAVD9kj4nPUgXt0ReDe7oKd3cnM03mhh+Q51SkLI=
