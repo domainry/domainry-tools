@@ -2,7 +2,7 @@ module github.com/domainry/domainry-tools
 
 go 1.26.0
 
-require github.com/domainry/domainry-tools-sdk v0.1.6
+require github.com/domainry/domainry-tools-sdk v0.1.7
 
 require (
 	github.com/domainry/domainry-todo-sdk v0.1.0 // indirect

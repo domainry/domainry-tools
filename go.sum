@@ -22,8 +22,8 @@ github.com/domainry/domainry-scheduler-sdk v0.1.12 h1:m+4WdsZNcZ686A9k7Lwr53wrQj
 github.com/domainry/domainry-scheduler-sdk v0.1.12/go.mod h1:U0/Ei93qXVaDPLuyV0aQwFzrwhUQDiBT0shmbT6llYk=
 github.com/domainry/domainry-todo-sdk v0.1.0 h1:Kg7juJFXzIxZ9Vx97IWkFSmCzWbcZG8zhRQQRL5DDaQ=
 github.com/domainry/domainry-todo-sdk v0.1.0/go.mod h1:UTFhvMMC2vBYX7P+ArDWYQVPowLvOUxNt/GHEKtQ1aY=
-github.com/domainry/domainry-tools-sdk v0.1.6 h1:DvYRQN6GREHpyUbLuibd0aJJMcz6KwMw4A+wvNsi5+Y=
-github.com/domainry/domainry-tools-sdk v0.1.6/go.mod h1:Hc9QDwXnPMeAUJd8C4j/hmIQYFaHsquM/iNIhMXXvp8=
+github.com/domainry/domainry-tools-sdk v0.1.7 h1:o04ebWhIIR56CI/UIHCHHgx2UtomIVC6X9OkVXB7q90=
+github.com/domainry/domainry-tools-sdk v0.1.7/go.mod h1:Hc9QDwXnPMeAUJd8C4j/hmIQYFaHsquM/iNIhMXXvp8=
 github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
 github.com/dustin/go-humanize v1.0.1/go.mod h1:Mu1zIs6XwVuF/gI1OepvI0qD18qycQx+mFykh5fBlto=
 github.com/google/pprof v0.0.0-20260802141513-ef3492d7dac3 h1:LMLX+LgTNWpfvCBdFebv6EsYotImrt/Ppc5cXIriCSo=
