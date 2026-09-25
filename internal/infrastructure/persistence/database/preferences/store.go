@@ -36,7 +36,7 @@ func New(db sqlhost.Database, renderer query.Renderer, profile driver.Profile) (
 func Migrations(renderer query.Renderer) ([]migration.Migration, error) {
 	statement, _, err := schema.NewTable(renderer, table).IfNotExists().Columns(
 		schema.Column("owner_key", schema.TextKey(64)).NotNull(), schema.Column("tool_key", schema.TextKey(128)).NotNull(),
-		schema.Column("enabled", schema.Boolean()).NotNull(), schema.Column("revision", schema.BigInt()).NotNull(), schema.Column("updated_at", schema.TextKey(40)).NotNull(),
+		schema.Column("enabled", schema.Boolean()).NotNull(), schema.Column("revision", schema.BigInt()).NotNull(), schema.Column("updated_at", schema.BigInt()).NotNull(),
 	).PrimaryKey("owner_key", "tool_key").Build()
 	if err != nil {
 		return nil, err
@@ -71,9 +71,13 @@ func (s *Store) Preference(ctx context.Context, a sdk.Authority, key string) (sd
 	if err != nil {
 		return sdk.Preference{}, err
 	}
-	err = s.db.QueryRowContext(ctx, statement, args...).Scan(&out.Enabled, &out.Revision, &out.UpdatedAt)
+	var updatedAt int64
+	err = s.db.QueryRowContext(ctx, statement, args...).Scan(&out.Enabled, &out.Revision, &updatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return out, nil
+	}
+	if err == nil {
+		out.UpdatedAt = time.UnixMilli(updatedAt).UTC().Format(time.RFC3339Nano)
 	}
 	return out, err
 }
@@ -85,14 +89,15 @@ func (s *Store) SavePreference(ctx context.Context, a sdk.Authority, key string,
 	if in.ExpectedRevision < 0 || in.ExpectedRevision == int64(^uint64(0)>>1) {
 		return sdk.Preference{}, &sdk.Error{Class: "bad_request", Code: "tools.settings.revision_invalid"}
 	}
-	out := sdk.Preference{Key: key, Enabled: in.Enabled, Revision: in.ExpectedRevision + 1, UpdatedAt: time.Now().UTC().Format(time.RFC3339Nano)}
+	now := time.Now().UTC()
+	out := sdk.Preference{Key: key, Enabled: in.Enabled, Revision: in.ExpectedRevision + 1, UpdatedAt: now.Format(time.RFC3339Nano)}
 	var statement string
 	var args []any
 	if in.ExpectedRevision == 0 {
 		own, _ := owner(a)
-		statement, args, err = query.NewInsertBuilder(s.renderer, table).Columns("owner_key", "tool_key", "enabled", "revision", "updated_at").Values(own, key, out.Enabled, out.Revision, out.UpdatedAt).Build()
+		statement, args, err = query.NewInsertBuilder(s.renderer, table).Columns("owner_key", "tool_key", "enabled", "revision", "updated_at").Values(own, key, out.Enabled, out.Revision, now.UnixMilli()).Build()
 	} else {
-		statement, args, err = query.NewUpdateBuilder(s.renderer, table).Set("enabled", out.Enabled).Set("revision", out.Revision).Set("updated_at", out.UpdatedAt).Where(query.And(where, query.Equal("revision", in.ExpectedRevision))).Build()
+		statement, args, err = query.NewUpdateBuilder(s.renderer, table).Set("enabled", out.Enabled).Set("revision", out.Revision).Set("updated_at", now.UnixMilli()).Where(query.And(where, query.Equal("revision", in.ExpectedRevision))).Build()
 	}
 	if err != nil {
 		return sdk.Preference{}, err
