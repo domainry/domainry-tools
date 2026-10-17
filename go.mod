@@ -2,7 +2,7 @@ module github.com/domainry/domainry-tools
 
 go 1.26.0
 
-require github.com/domainry/domainry-tools-sdk v0.1.10
+require github.com/domainry/domainry-tools-sdk v0.1.13
 
 require (
 	github.com/domainry/domainry-todo-sdk v0.1.6 // indirect
@@ -11,11 +11,11 @@ require (
 
 require (
 	github.com/domainry/domainry-connector-sdk v0.1.3
-	github.com/domainry/domainry-foundation v0.1.41
-	github.com/domainry/domainry-identity-sdk v0.1.18
-	github.com/domainry/domainry-integration-sdk v0.1.12
+	github.com/domainry/domainry-foundation v0.1.43
+	github.com/domainry/domainry-identity-sdk v0.1.19
+	github.com/domainry/domainry-integration-sdk v0.1.14
 	github.com/domainry/domainry-knowledge-sdk v0.1.8
-	github.com/domainry/domainry-orm v0.1.32
+	github.com/domainry/domainry-orm v0.1.33
 	github.com/domainry/domainry-report-sdk v0.1.16
 	modernc.org/sqlite v1.57.0
 )

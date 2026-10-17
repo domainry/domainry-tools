@@ -72,6 +72,11 @@ func invokeWeb(t *testing.T, s *module.Selection, r sdk.Request) (sdk.Result, we
 }
 
 func TestWebPublicToolsUseFixedConnectionAndRetainSources(t *testing.T) {
+	for _, definition := range module.WebDefinitions() {
+		if definition.ActionKey != "agent.conversation_tools."+definition.Key {
+			t.Fatalf("web action key=%q for %q", definition.ActionKey, definition.Key)
+		}
+	}
 	for _, key := range []string{web.SearchOperationKey, web.FetchOperationKey} {
 		t.Run(key, func(t *testing.T) {
 			f := webFixture()

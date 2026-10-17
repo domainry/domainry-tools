@@ -8,8 +8,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	sdk "github.com/domainry/domainry-tools-sdk"
 	"github.com/domainry/domainry-tools-sdk/schema"
@@ -44,7 +46,22 @@ func NewRegistry() *Registry { return &Registry{entries: map[string]Registration
 func copyDefinition(in sdk.Definition) sdk.Definition {
 	in.InputSchema = append(json.RawMessage(nil), in.InputSchema...)
 	in.OutputSchema = append(json.RawMessage(nil), in.OutputSchema...)
+	in.ExecutionPlan = append([]sdk.ProgressStep(nil), in.ExecutionPlan...)
 	return in
+}
+
+func validExecutionPlan(plan []sdk.ProgressStep) bool {
+	if len(plan) > 32 {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, step := range plan {
+		if strings.TrimSpace(step.Key) == "" || len(step.Key) > 64 || !utf8.ValidString(step.Key) || strings.ContainsRune(step.Key, 0) || seen[step.Key] || strings.TrimSpace(step.Label) == "" || len(step.Label) > 160 || !utf8.ValidString(step.Label) || strings.ContainsRune(step.Label, 0) || len(step.Detail) > 512 || !utf8.ValidString(step.Detail) || strings.ContainsRune(step.Detail, 0) {
+			return false
+		}
+		seen[step.Key] = true
+	}
+	return true
 }
 
 func (r *Registry) Register(in Registration) error {
@@ -53,6 +70,9 @@ func (r *Registry) Register(in Registration) error {
 	}
 	if in.Definition.TimeoutMillis < 1 || in.Definition.TimeoutMillis > 300000 || in.Definition.MaxOutputBytes < 1 || in.Definition.MaxOutputBytes > 1048576 {
 		return fmt.Errorf("invalid tool execution limits")
+	}
+	if !validExecutionPlan(in.Definition.ExecutionPlan) {
+		return fmt.Errorf("invalid tool execution plan")
 	}
 	if _, err := schema.CompileSchema(in.Definition.InputSchema); err != nil {
 		return fmt.Errorf("invalid input schema: %w", err)

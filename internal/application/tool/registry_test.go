@@ -84,6 +84,26 @@ func TestRegistrationAcceptsOnlyExplicitReadParallelism(t *testing.T) {
 	}
 }
 
+func TestRegistrationValidatesDeclaredExecutionPlan(t *testing.T) {
+	base := sdk.Definition{Key: "read", Version: "1", Description: "Read", ActionKey: "records.read", Effect: "read", Idempotency: "natural", InputSchema: json.RawMessage(`{"type":"object"}`), OutputSchema: json.RawMessage(`{"type":"object"}`), TimeoutMillis: 1000, MaxOutputBytes: 1024}
+	handler := func(context.Context, sdk.Request) (sdk.Result, error) {
+		return sdk.Result{Status: "completed", Content: json.RawMessage(`{}`)}, nil
+	}
+	authorize := func(context.Context, sdk.Request) (sdk.Authorization, error) {
+		return sdk.Authorization{Granted: true}, nil
+	}
+	valid := base
+	valid.ExecutionPlan = []sdk.ProgressStep{{Key: "lookup", Label: "查询记录", Detail: "等待查询"}, {Key: "decide", Label: "生成结论"}}
+	if err := NewRegistry().Register(Registration{Definition: valid, Authorize: authorize, Invoke: handler}); err != nil {
+		t.Fatal(err)
+	}
+	duplicate := base
+	duplicate.ExecutionPlan = []sdk.ProgressStep{{Key: "lookup", Label: "查询记录"}, {Key: "lookup", Label: "重复步骤"}}
+	if err := NewRegistry().Register(Registration{Definition: duplicate, Authorize: authorize, Invoke: handler}); err == nil {
+		t.Fatal("duplicate execution-plan key accepted")
+	}
+}
+
 func TestSelectionAppliesOwnerDefinitionTimeout(t *testing.T) {
 	registry := NewRegistry()
 	definition := sdk.Definition{Key: "slow", Version: "1", Description: "Slow read", ActionKey: "slow.read", Effect: "read", Idempotency: "natural", InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false}`), OutputSchema: json.RawMessage(`{"type":"object"}`), TimeoutMillis: 25, MaxOutputBytes: 1024}
