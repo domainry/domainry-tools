@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/domainry/domainry-foundation/modulehttp"
+	"github.com/domainry/domainry-foundation/telemetry"
 	identity "github.com/domainry/domainry-identity-sdk"
 	"github.com/domainry/domainry-identity-sdk/authorization/evaluator"
 	sdk "github.com/domainry/domainry-tools-sdk"
@@ -100,6 +101,7 @@ func respond(w http.ResponseWriter, value any, err error) {
 	json.NewEncoder(w).Encode(value)
 }
 func failure(w http.ResponseWriter, status int, code string) {
+	telemetry.RecordHTTPStatusError(w, status, code)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(map[string]string{"code": code})

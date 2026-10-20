@@ -2,16 +2,36 @@ module github.com/domainry/domainry-tools
 
 go 1.26.0
 
-require github.com/domainry/domainry-tools-sdk v0.1.16
+require github.com/domainry/domainry-tools-sdk v0.1.18
 
 require (
+	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/domainry/domainry-todo-sdk v0.1.9 // indirect
+	github.com/go-logr/logr v1.4.3 // indirect
+	github.com/go-logr/stdr v1.2.2 // indirect
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 // indirect
+	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
+	go.opentelemetry.io/otel v1.44.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.44.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.44.0 // indirect
+	go.opentelemetry.io/otel/metric v1.44.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.44.0 // indirect
+	go.opentelemetry.io/otel/trace v1.44.0 // indirect
+	go.opentelemetry.io/proto/otlp v1.10.0 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
+	go.uber.org/zap v1.27.1 // indirect
+	golang.org/x/net v0.58.0 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
+	google.golang.org/grpc v1.82.1 // indirect
+	google.golang.org/protobuf v1.36.11 // indirect
 )
 
 require (
 	github.com/domainry/domainry-connector-sdk v0.1.8
-	github.com/domainry/domainry-foundation v0.2.2
+	github.com/domainry/domainry-foundation v0.2.5
 	github.com/domainry/domainry-identity-sdk v0.1.22
 	github.com/domainry/domainry-integration-sdk v0.1.17
 	github.com/domainry/domainry-knowledge-sdk v0.1.14
