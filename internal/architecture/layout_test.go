@@ -20,10 +20,7 @@ func TestLayeredLayoutAndPrivateImplementations(t *testing.T) {
 			t.Errorf("missing boundary %s: %v", rel, err)
 		}
 	}
-	public := map[string]bool{}
-	for _, p := range []string{"module", "calculation", "timeutil"} {
-		public[p] = true
-	}
+	public := map[string]bool{"module": true}
 	filename := regexp.MustCompile(`^[a-z][a-z0-9_]*\.go$`)
 	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
@@ -123,5 +120,21 @@ func TestLayeredLayoutAndPrivateImplementations(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestAssemblyContainsOnlyDeploymentModes(t *testing.T) {
+	entries, err := os.ReadDir(filepath.Join("..", "assembly"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	allowed := map[string]bool{"module": true, "saas": true}
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+		if !entry.IsDir() || !allowed[entry.Name()] {
+			t.Errorf("internal/assembly contains non-deployment entry %q", entry.Name())
+		}
 	}
 }

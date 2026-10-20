@@ -16,8 +16,8 @@ import (
 	scheduletools "github.com/domainry/domainry-tools/internal/adapter/scheduletools"
 	webtools "github.com/domainry/domainry-tools/internal/adapter/webtools"
 	application "github.com/domainry/domainry-tools/internal/application/tool"
-	conversationassembly "github.com/domainry/domainry-tools/internal/assembly/conversation"
-	preferences "github.com/domainry/domainry-tools/internal/assembly/preferences"
+	conversationassembly "github.com/domainry/domainry-tools/internal/assembly/module/conversation"
+	preferences "github.com/domainry/domainry-tools/internal/assembly/module/preferences"
 	preferenceshttp "github.com/domainry/domainry-tools/internal/transport/http/preferences"
 )
 
