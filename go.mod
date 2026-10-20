@@ -2,12 +2,11 @@ module github.com/domainry/domainry-tools
 
 go 1.26.0
 
-require github.com/domainry/domainry-tools-sdk v0.1.18
+require github.com/domainry/domainry-tools-sdk v0.1.19
 
 require (
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/domainry/domainry-todo-sdk v0.1.9 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
@@ -30,20 +29,19 @@ require (
 )
 
 require (
-	github.com/domainry/domainry-connector-sdk v0.1.8
-	github.com/domainry/domainry-foundation v0.2.8
-	github.com/domainry/domainry-identity-sdk v0.1.22
-	github.com/domainry/domainry-integration-sdk v0.1.17
-	github.com/domainry/domainry-knowledge-sdk v0.1.14
+	github.com/domainry/domainry-connector-sdk v0.1.11
+	github.com/domainry/domainry-foundation v0.2.9
+	github.com/domainry/domainry-identity-sdk v0.1.27
+	github.com/domainry/domainry-integration-sdk v0.1.19
+	github.com/domainry/domainry-knowledge-sdk v0.1.19
 	github.com/domainry/domainry-orm v0.1.33
-	github.com/domainry/domainry-report-sdk v0.1.18
+	github.com/domainry/domainry-report-sdk v0.1.21
 	modernc.org/sqlite v1.57.0
 )
 
 require (
-	github.com/domainry/domainry-agent-sdk v0.1.39 // indirect
-	github.com/domainry/domainry-notification-sdk v0.1.13 // indirect
-	github.com/domainry/domainry-scheduler-sdk v0.1.15
+	github.com/domainry/domainry-notification-sdk v0.1.16 // indirect
+	github.com/domainry/domainry-scheduler-sdk v0.1.18
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
