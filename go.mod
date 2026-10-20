@@ -33,7 +33,7 @@ require (
 	github.com/domainry/domainry-foundation v0.2.9
 	github.com/domainry/domainry-identity-sdk v0.1.27
 	github.com/domainry/domainry-integration-sdk v0.1.20
-	github.com/domainry/domainry-knowledge-sdk v0.1.21
+	github.com/domainry/domainry-knowledge-sdk v0.1.22
 	github.com/domainry/domainry-orm v0.1.33
 	github.com/domainry/domainry-report-sdk v0.1.22
 	modernc.org/sqlite v1.57.0
