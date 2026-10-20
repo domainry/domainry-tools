@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/domainry/domainry-foundation/httpresponse"
 	"github.com/domainry/domainry-foundation/modulehttp"
-	"github.com/domainry/domainry-foundation/telemetry"
 	identity "github.com/domainry/domainry-identity-sdk"
 	"github.com/domainry/domainry-identity-sdk/authorization/evaluator"
 	sdk "github.com/domainry/domainry-tools-sdk"
@@ -39,23 +39,23 @@ func NewAdapter(settings sdk.Settings, runtime string) (modulehttp.Adapter, erro
 			r = r.WithContext(ctx)
 			current, ok := identity.RequestIdentityFromContext(r.Context())
 			if !ok || !current.Principal.Known {
-				failure(w, 401, "tools.settings.login_required")
+				failure(w, r, 401, "tools.settings.login_required")
 				return
 			}
 			p := current.Principal
 			if p.MustChangePassword || p.AccessBundle == nil || p.WorkspaceID == "" || p.UserID == "" {
-				failure(w, 403, "tools.settings.access_denied")
+				failure(w, r, 403, "tools.settings.access_denied")
 				return
 			}
 			decision, err := evaluator.Evaluate(*p.AccessBundle, identity.AccessRequest{ObjectKey: "tools.preferences", Action: route.Action.OperationKey}, identity.ResourceFacts{"owner_user_id": p.UserID, "workspace_id": p.WorkspaceID}, time.Now().UTC())
 			if err != nil || !decision.Allowed {
-				failure(w, 403, "tools.settings.access_denied")
+				failure(w, r, 403, "tools.settings.access_denied")
 				return
 			}
 			authority := sdk.Authority{Known: true, RuntimeID: runtime, WorkspaceID: p.WorkspaceID, UserID: p.UserID, RoleKey: p.RoleKey}
 			if r.Method == "GET" {
 				items, err := settings.ListToolSettings(r.Context(), authority)
-				respond(w, map[string]any{"items": items}, err)
+				respond(w, r, map[string]any{"items": items}, err)
 				return
 			}
 			var in struct {
@@ -66,16 +66,16 @@ func NewAdapter(settings sdk.Settings, runtime string) (modulehttp.Adapter, erro
 			decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
 			decoder.DisallowUnknownFields()
 			if decoder.Decode(&in) != nil || in.Enabled == nil || in.Revision == nil || in.Version == "" {
-				failure(w, 400, "tools.settings.input_invalid")
+				failure(w, r, 400, "tools.settings.input_invalid")
 				return
 			}
 			var extra any
 			if decoder.Decode(&extra) != io.EOF {
-				failure(w, 400, "tools.settings.input_invalid")
+				failure(w, r, 400, "tools.settings.input_invalid")
 				return
 			}
 			value, err := settings.UpdateToolSetting(r.Context(), authority, r.PathValue("toolKey"), sdk.ToolSettingInput{Enabled: *in.Enabled, ExpectedRevision: *in.Revision, ToolVersion: in.Version})
-			respond(w, value, err)
+			respond(w, r, value, err)
 		})
 	}
 	result := &adapter{mux}
@@ -84,25 +84,21 @@ func NewAdapter(settings sdk.Settings, runtime string) (modulehttp.Adapter, erro
 	}
 	return result, nil
 }
-func respond(w http.ResponseWriter, value any, err error) {
+func respond(w http.ResponseWriter, r *http.Request, value any, err error) {
 	if err != nil {
 		var coded *sdk.Error
 		if errors.As(err, &coded) {
 			status := map[string]int{"forbidden": 403, "bad_request": 400, "conflict": 409, "not_found": 404}[coded.Class]
 			if status != 0 {
-				failure(w, status, coded.Code)
+				failure(w, r, status, coded.Code)
 				return
 			}
 		}
-		failure(w, 503, "tools.settings.unavailable")
+		failure(w, r, 503, "tools.settings.unavailable")
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(value)
+	httpresponse.WriteJSON(w, http.StatusOK, value)
 }
-func failure(w http.ResponseWriter, status int, code string) {
-	telemetry.RecordHTTPStatusError(w, status, code)
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]string{"code": code})
+func failure(w http.ResponseWriter, r *http.Request, status int, code string) {
+	httpresponse.WriteError(w, r, httpresponse.Failure{Status: status, Code: code})
 }
