@@ -41,7 +41,7 @@ require (
 
 require (
 	github.com/domainry/domainry-notification-sdk v0.1.18 // indirect
-	github.com/domainry/domainry-scheduler-sdk v0.1.19
+	github.com/domainry/domainry-scheduler-sdk v0.1.20
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
