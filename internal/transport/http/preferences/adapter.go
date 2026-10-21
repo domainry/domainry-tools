@@ -88,7 +88,12 @@ func respond(w http.ResponseWriter, r *http.Request, value any, err error) {
 	if err != nil {
 		var coded *sdk.Error
 		if errors.As(err, &coded) {
-			status := map[string]int{"forbidden": 403, "bad_request": 400, "conflict": 409, "not_found": 404}[coded.Class]
+			status := map[sdk.ErrorClass]int{
+				sdk.ErrorClassForbidden:  403,
+				sdk.ErrorClassBadRequest: 400,
+				sdk.ErrorClassConflict:   409,
+				sdk.ErrorClassNotFound:   404,
+			}[coded.Class]
 			if status != 0 {
 				failure(w, r, status, coded.Code)
 				return

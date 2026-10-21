@@ -106,13 +106,15 @@ func (a *Adapter) ConversationToolAvailable(ctx context.Context, authority sdk.A
 func deniedOrUnavailable(err error) bool {
 	var tool *sdk.Error
 	if errors.As(err, &tool) {
-		return tool.Class == "forbidden" || tool.Class == "not_found" || tool.Class == "unavailable"
+		return tool.Class == sdk.ErrorClassForbidden || tool.Class == sdk.ErrorClassNotFound || tool.Class == sdk.ErrorClassUnavailable
 	}
 	var report *reportsdk.Error
-	return errors.As(err, &report) && (report.StatusCode == 401 || report.StatusCode == 403 || report.StatusCode == 404 || report.StatusCode == 503)
+	return errors.As(err, &report) && (report.Class == reportsdk.ErrorClassForbidden || report.Class == reportsdk.ErrorClassNotFound || report.Class == reportsdk.ErrorClassUnavailable)
 }
 
-func failure(class, code string) error { return &sdk.Error{Class: class, Code: "report." + code} }
+func failure(class sdk.ErrorClass, code string) error {
+	return &sdk.Error{Class: class, Code: "report." + code}
+}
 
 func decode(raw []byte, target any) error {
 	if !utf8.Valid(raw) || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {

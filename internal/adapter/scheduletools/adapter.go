@@ -734,6 +734,6 @@ func mapSchedulerError(err error) error {
 	}
 }
 
-func toolError(class, code string) error { return &sdk.Error{Class: class, Code: code} }
+func toolError(class sdk.ErrorClass, code string) error { return &sdk.Error{Class: class, Code: code} }
 
 var _ sdk.Availability = (*Adapter)(nil)

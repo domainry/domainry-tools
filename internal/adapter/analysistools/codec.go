@@ -28,7 +28,9 @@ type output struct {
 	Result         *model.AnalysisResult  `json:"result,omitempty"`
 }
 
-func failure(class, code string) error { return &sdk.Error{Class: class, Code: "analysis." + code} }
+func failure(class sdk.ErrorClass, code string) error {
+	return &sdk.Error{Class: class, Code: "analysis." + code}
+}
 func digest(value any) string {
 	raw, _ := json.Marshal(value)
 	sum := sha256.Sum256(raw)

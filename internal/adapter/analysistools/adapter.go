@@ -73,11 +73,11 @@ func (a *Adapter) ConversationToolAvailable(ctx context.Context, authority sdk.A
 	}
 	catalog, err := source.AnalysisCatalog(ctx, model.AnalysisCatalogRequest{Page: model.ReportPageRequest{PageSize: 1}}, authority)
 	var tool *sdk.Error
-	if errors.As(err, &tool) && (tool.Class == "forbidden" || tool.Class == "not_found" || tool.Class == "unavailable") {
+	if errors.As(err, &tool) && (tool.Class == sdk.ErrorClassForbidden || tool.Class == sdk.ErrorClassNotFound || tool.Class == sdk.ErrorClassUnavailable) {
 		return false, nil
 	}
 	var report *reportsdk.Error
-	if errors.As(err, &report) && (report.StatusCode == 401 || report.StatusCode == 403 || report.StatusCode == 404 || report.StatusCode == 503 || report.Code == "backend.report.analysis.unavailable") {
+	if errors.As(err, &report) && (report.Class == reportsdk.ErrorClassForbidden || report.Class == reportsdk.ErrorClassNotFound || report.Class == reportsdk.ErrorClassUnavailable) {
 		return false, nil
 	}
 	return err == nil && len(catalog.Datasets) > 0, err
