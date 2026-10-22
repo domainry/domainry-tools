@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/domainry/domainry-foundation/schemaownership"
 	"github.com/domainry/domainry-orm/driver"
 	"github.com/domainry/domainry-orm/migration"
 	"github.com/domainry/domainry-orm/query"
@@ -20,6 +21,14 @@ import (
 )
 
 const table = "_tools_user_preferences"
+
+func SchemaOwnership() []schemaownership.Table {
+	return []schemaownership.Table{{
+		Name: table, Owner: "tools/preferences", Kind: schemaownership.KindState, WorkspaceScope: schemaownership.ScopeWorkspace,
+		RetentionClass: schemaownership.RetentionUserErase, PrimaryKey: []string{"id"}, UniqueKey: []string{"owner_key", "tool_key"},
+		BoundedQueryPath: "exact owner and tool key", DeletionPolicy: "subject erasure removes personal tool preferences",
+	}}
+}
 
 type Store struct {
 	db       sqlhost.Database
@@ -34,10 +43,10 @@ func New(db sqlhost.Database, renderer query.Renderer, profile driver.Profile) (
 	return &Store{db, renderer, profile}, nil
 }
 func Migrations(renderer query.Renderer) ([]migration.Migration, error) {
-	statement, _, err := schema.NewTable(renderer, table).IfNotExists().Columns(
+	statement, _, err := schema.NewTableWithRequiredColumns(renderer, table, schema.Column("id", schema.BigInt()).NotNull().AutoIncrement()).IfNotExists().Columns(
 		schema.Column("owner_key", schema.TextKey(64)).NotNull(), schema.Column("tool_key", schema.TextKey(128)).NotNull(),
 		schema.Column("enabled", schema.Boolean()).NotNull(), schema.Column("revision", schema.BigInt()).NotNull(), schema.Column("updated_at", schema.BigInt()).NotNull(),
-	).PrimaryKey("owner_key", "tool_key").Build()
+	).PrimaryKey("id").Unique("owner_key", "tool_key").Build()
 	if err != nil {
 		return nil, err
 	}

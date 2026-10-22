@@ -28,7 +28,7 @@ func (s *planServiceStub) CreateScheduledPlan(_ context.Context, input scheduler
 	}
 	s.last = input
 	now := time.Date(2026, 9, 12, 8, 0, 0, 0, time.UTC)
-	plan := schedulersdk.ScheduledPlan{ID: id, Name: input.Name, Owner: input.Owner, Timezone: input.Timezone, Trigger: input.Trigger, Input: input.Input, AllowedActions: input.AllowedActions, Target: input.Target, ConversationRef: input.ConversationRef, Status: schedulersdk.ScheduledPlanStatusEnabled, Revision: 1, CreatedAt: now, UpdatedAt: now}
+	plan := schedulersdk.ScheduledPlan{ID: int64(len(s.plans) + 1), PlanID: id, Name: input.Name, Owner: input.Owner, Timezone: input.Timezone, Trigger: input.Trigger, Input: input.Input, AllowedActions: input.AllowedActions, Target: input.Target, ConversationRef: input.ConversationRef, Status: schedulersdk.ScheduledPlanStatusEnabled, Revision: 1, CreatedAt: now, UpdatedAt: now}
 	s.plans[id] = plan
 	return schedulersdk.ScheduledPlanReceipt{Plan: plan}, nil
 }
@@ -58,7 +58,7 @@ func (s *planServiceStub) UpdateScheduledPlan(_ context.Context, input scheduler
 	}
 	plan.Name, plan.Timezone, plan.Trigger, plan.Input, plan.AllowedActions, plan.Target, plan.ConversationRef = input.Name, input.Timezone, input.Trigger, input.Input, input.AllowedActions, input.Target, input.ConversationRef
 	plan.Revision++
-	s.plans[plan.ID] = plan
+	s.plans[plan.PlanID] = plan
 	return schedulersdk.ScheduledPlanReceipt{Plan: plan}, nil
 }
 func (s *planServiceStub) status(input schedulersdk.ScheduledPlanStatusChange, status string) (schedulersdk.ScheduledPlanReceipt, error) {
@@ -70,7 +70,7 @@ func (s *planServiceStub) status(input schedulersdk.ScheduledPlanStatusChange, s
 		return schedulersdk.ScheduledPlanReceipt{}, schedulersdk.ErrScheduledPlanConflict
 	}
 	plan.Status, plan.Revision = status, plan.Revision+1
-	s.plans[plan.ID] = plan
+	s.plans[plan.PlanID] = plan
 	return schedulersdk.ScheduledPlanReceipt{Plan: plan}, nil
 }
 func (s *planServiceStub) PauseScheduledPlan(_ context.Context, input schedulersdk.ScheduledPlanStatusChange) (schedulersdk.ScheduledPlanReceipt, error) {
@@ -149,11 +149,11 @@ func TestScheduleToolsMapNaturalLanguagePlansAndManageLifecycle(t *testing.T) {
 	if err := json.Unmarshal(created.Content, &createOut); err != nil || createOut.Plan == nil || createOut.Plan.Kind != backgroundTaskKind {
 		t.Fatalf("create output=%s err=%v", created.Content, err)
 	}
-	planID := createOut.Plan.ID
+	planID := createOut.Plan.PlanID
 	listed := invokeSchedule(t, host, authority, sdk.ScheduleListToolKey, `{}`, 2)
 	var listOut output
 	_ = json.Unmarshal(listed.Content, &listOut)
-	if listOut.Items == nil || len(*listOut.Items) != 1 || (*listOut.Items)[0].ID != planID {
+	if listOut.Items == nil || len(*listOut.Items) != 1 || (*listOut.Items)[0].PlanID != planID {
 		t.Fatalf("list=%s", listed.Content)
 	}
 	updated := invokeSchedule(t, host, authority, sdk.ScheduleUpdateToolKey, fmt.Sprintf(`{"plan_id":%q,"expected_revision":1,"name":"每周二整理待办","trigger":{"type":"recurring","schedule":{"type":"weekly_at","time_of_day":"10:30","day_of_week":"tuesday"}}}`, planID), 3)
@@ -231,7 +231,7 @@ func TestScheduleToolsBuildReminderAndRejectRoutingOrUnavailableTaskTools(t *tes
 	if list.Items == nil || len(*list.Items) != 0 {
 		t.Fatalf("cross-user list=%s", result.Content)
 	}
-	if _, err := plans.GetScheduledPlan(t.Context(), schedulersdk.ScheduledPlanLookup{Owner: schedulersdk.ScheduledPlanOwner{WorkspaceID: "workspace", UserID: "other", ProductKey: "work"}, PlanID: out.Plan.ID}); !errors.Is(err, schedulersdk.ErrScheduledPlanNotFound) {
+	if _, err := plans.GetScheduledPlan(t.Context(), schedulersdk.ScheduledPlanLookup{Owner: schedulersdk.ScheduledPlanOwner{WorkspaceID: "workspace", UserID: "other", ProductKey: "work"}, PlanID: out.Plan.PlanID}); !errors.Is(err, schedulersdk.ErrScheduledPlanNotFound) {
 		t.Fatalf("cross-user get err=%v", err)
 	}
 }
@@ -253,12 +253,12 @@ func TestScheduleToolsBuildScopedFollowUpAndPreserveItAcrossUpdate(t *testing.T)
 	if err := json.Unmarshal(plans.last.Input, &payload); err != nil || payload.FollowUp.CompletionCondition != "发布阻塞项全部完成" || len(payload.AllowedTools) != 1 || payload.AllowedTools[0] != "todo_list" {
 		t.Fatalf("follow-up scheduler payload=%s err=%v", plans.last.Input, err)
 	}
-	updated := invokeSchedule(t, host, authority, sdk.ScheduleUpdateToolKey, fmt.Sprintf(`{"plan_id":%q,"expected_revision":1,"details":{"completion_condition":"发布已上线"}}`, out.Plan.ID), 21)
+	updated := invokeSchedule(t, host, authority, sdk.ScheduleUpdateToolKey, fmt.Sprintf(`{"plan_id":%q,"expected_revision":1,"details":{"completion_condition":"发布已上线"}}`, out.Plan.PlanID), 21)
 	var updatedOut output
 	if err := json.Unmarshal(updated.Content, &updatedOut); err != nil || updatedOut.Plan == nil || updatedOut.Plan.Kind != followUpKind || updatedOut.Plan.Details.CompletionCondition != "发布已上线" {
 		t.Fatalf("updated follow-up=%s err=%v", updated.Content, err)
 	}
-	paused := invokeSchedule(t, host, authority, sdk.SchedulePauseToolKey, fmt.Sprintf(`{"plan_id":%q,"expected_revision":2}`, out.Plan.ID), 22)
+	paused := invokeSchedule(t, host, authority, sdk.SchedulePauseToolKey, fmt.Sprintf(`{"plan_id":%q,"expected_revision":2}`, out.Plan.PlanID), 22)
 	var pausedOut output
 	if err := json.Unmarshal(paused.Content, &pausedOut); err != nil || pausedOut.Plan == nil || pausedOut.Plan.Kind != followUpKind || pausedOut.Plan.Status != schedulersdk.ScheduledPlanStatusPaused {
 		t.Fatalf("paused follow-up=%s err=%v", paused.Content, err)

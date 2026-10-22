@@ -24,7 +24,7 @@ type recordReadStore struct {
 
 func (s *recordReadStore) Get(_ context.Context, kind, id string, revision int64, a sdk.Authority) (contract.Record, error) {
 	s.gets++
-	if !a.Known || a.RuntimeID != s.owner.RuntimeID || a.WorkspaceID != s.owner.WorkspaceID || a.UserID != s.owner.UserID || kind != s.original.Kind || id != s.original.ID || revision != s.original.Revision {
+	if !a.Known || a.RuntimeID != s.owner.RuntimeID || a.WorkspaceID != s.owner.WorkspaceID || a.UserID != s.owner.UserID || kind != s.original.Kind || id != s.original.RecordID || revision != s.original.Revision {
 		return contract.Record{}, fmt.Errorf("record outside immutable owner scope")
 	}
 	if s.afterGet != nil {
@@ -32,7 +32,7 @@ func (s *recordReadStore) Get(_ context.Context, kind, id string, revision int64
 	}
 	return s.original, nil
 }
-func (s *recordReadStore) List(context.Context, string, string, string, int, sdk.Authority) (contract.Page, error) {
+func (s *recordReadStore) List(context.Context, string, string, int64, int, sdk.Authority) (contract.Page, error) {
 	s.lists++
 	return contract.Page{}, fmt.Errorf("result read must not relist")
 }
@@ -56,7 +56,7 @@ func (s *recordReadStore) Receipt(_ context.Context, kind string, w contract.Wri
 
 func recordReadFixture(t *testing.T) (*Adapter, *recordReadStore, *tools.Selection, *bool, *bool) {
 	t.Helper()
-	store := &recordReadStore{original: contract.Record{ID: "rec_original", Kind: "requirements", Title: "Original", Status: "draft", Revision: 1, Data: json.RawMessage(`{"amount":9007199254740993}`), CreatedAt: time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC), UpdatedAt: time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC)}, owner: sdk.Authority{Known: true, RuntimeID: "runtime", WorkspaceID: "workspace", UserID: "owner", RoleKey: "old_writer"}}
+	store := &recordReadStore{original: contract.Record{ID: 17, RecordID: "krec_0123456789abcdef0123456789abcdef", Kind: "requirements", Title: "Original", Status: "draft", Revision: 1, Data: json.RawMessage(`{"amount":9007199254740993}`), CreatedAt: time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC), UpdatedAt: time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC)}, owner: sdk.Authority{Known: true, RuntimeID: "runtime", WorkspaceID: "workspace", UserID: "owner", RoleKey: "old_writer"}}
 	readable, originalReadable := true, true
 	adapter := &Adapter{Store: store, Spec: Spec{Kind: "requirements", Prefix: "requirements", Name: "Requirements", DataSchema: json.RawMessage(`{"type":"object"}`), Validate: func(_, _ *contract.Record) error {
 		t.Error("result read invoked product mutation validation")
@@ -100,7 +100,7 @@ func TestStructuredRecordResultReadUsesImmutableVersionsAndReadPermissionOnly(t 
 			adapter, store, host, readable, originalReadable := recordReadFixture(t)
 			reader := store.owner
 			reader.RoleKey = "current_reader"
-			args := `{"id":"rec_original"}`
+			args := `{"record_id":"krec_0123456789abcdef0123456789abcdef"}`
 			var value any = store.original
 			resource := ""
 			if key == "requirements_list" {
@@ -109,7 +109,7 @@ func TestStructuredRecordResultReadUsesImmutableVersionsAndReadPermissionOnly(t 
 			}
 			if key == "requirements_save" {
 				args = `{"expected_revision":0,"title":"Original","status":"draft","data":{"amount":9007199254740993}}`
-				resource = store.original.ID
+				resource = store.original.RecordID
 			}
 			request := recordReadRequest(reader, key, args, adapter)
 			request.ResultProducer = &store.owner
@@ -158,7 +158,7 @@ func TestStructuredRecordResultReadUsesImmutableVersionsAndReadPermissionOnly(t 
 
 func TestStructuredRecordResultReadRejectsForeignOwnersDefinitionsAndChangedResults(t *testing.T) {
 	adapter, store, host, _, _ := recordReadFixture(t)
-	request := recordReadRequest(store.owner, "requirements_read", `{"id":"rec_original","revision":1}`, adapter)
+	request := recordReadRequest(store.owner, "requirements_read", `{"record_id":"krec_0123456789abcdef0123456789abcdef","revision":1}`, adapter)
 	raw, _ := json.Marshal(store.original)
 	out := sdk.Result{Status: "completed", Content: raw}
 	for _, test := range []struct {
@@ -170,16 +170,18 @@ func TestStructuredRecordResultReadRejectsForeignOwnersDefinitionsAndChangedResu
 		{"foreign workspace", func(r *sdk.Request, _ *sdk.Result) { r.Authority.WorkspaceID = "other" }},
 		{"foreign runtime", func(r *sdk.Request, _ *sdk.Result) { r.Authority.RuntimeID = "other" }},
 		{"changed definition", func(r *sdk.Request, _ *sdk.Result) { r.Definition.Version = "2" }},
-		{"changed original request", func(r *sdk.Request, _ *sdk.Result) { r.Call.Arguments = `{"id":"other"}` }},
-		{"changed original version", func(r *sdk.Request, _ *sdk.Result) { r.Call.Arguments = `{"id":"rec_original","revision":2}` }},
+		{"changed original request", func(r *sdk.Request, _ *sdk.Result) { r.Call.Arguments = `{"record_id":"other"}` }},
+		{"changed original version", func(r *sdk.Request, _ *sdk.Result) {
+			r.Call.Arguments = `{"record_id":"krec_0123456789abcdef0123456789abcdef","revision":2}`
+		}},
 		{"changed payload", func(_ *sdk.Request, o *sdk.Result) {
 			v := store.original
 			v.Title = "Changed"
 			o.Content, _ = json.Marshal(v)
 		}},
-		{"unexpected resource", func(_ *sdk.Request, o *sdk.Result) { o.ResourceID = store.original.ID }},
+		{"unexpected resource", func(_ *sdk.Request, o *sdk.Result) { o.ResourceID = store.original.RecordID }},
 		{"unknown original field", func(_ *sdk.Request, o *sdk.Result) {
-			o.Content = json.RawMessage(`{"id":"rec_original","kind":"requirements","title":"Original","revision":1,"data":{},"unexpected":"secret"}`)
+			o.Content = json.RawMessage(`{"id":17,"record_id":"krec_0123456789abcdef0123456789abcdef","kind":"requirements","title":"Original","revision":1,"data":{},"unexpected":"secret"}`)
 		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -207,7 +209,7 @@ func TestStructuredRecordSavedPagesRemainHistoricalAndValidateOriginalBounds(t *
 	}{
 		{"original incomplete cursor", contract.Page{Items: []contract.Record{store.original}, NextCursor: store.original.ID, Complete: false}, true},
 		{"original complete page", contract.Page{Items: []contract.Record{store.original}, Complete: true}, true},
-		{"wrong cursor", contract.Page{Items: []contract.Record{store.original}, NextCursor: "other", Complete: false}, false},
+		{"wrong cursor", contract.Page{Items: []contract.Record{store.original}, NextCursor: store.original.ID + 1, Complete: false}, false},
 		{"complete page with cursor", contract.Page{Items: []contract.Record{store.original}, NextCursor: store.original.ID, Complete: true}, false},
 		{"incomplete empty page", contract.Page{Items: []contract.Record{}, Complete: false}, false},
 		{"too many original rows", contract.Page{Items: []contract.Record{store.original, store.original}, Complete: true}, false},
@@ -240,7 +242,7 @@ func TestStructuredRecordSaveReceiptRechecksReaderAfterOriginalOwnerLedgerLookup
 	request.ResultProducer = &store.owner
 	raw, _ := json.Marshal(store.original)
 	store.afterReceipt = func() { *readable = false }
-	if err := host.AuthorizeConversationToolResultRead(t.Context(), request, sdk.Result{Status: "completed", Content: raw, ResourceID: store.original.ID}); err == nil || store.receipts != 1 || store.saves != 0 {
+	if err := host.AuthorizeConversationToolResultRead(t.Context(), request, sdk.Result{Status: "completed", Content: raw, ResourceID: store.original.RecordID}); err == nil || store.receipts != 1 || store.saves != 0 {
 		t.Fatal("reader withdrawal during original ledger IO passed", err)
 	}
 }

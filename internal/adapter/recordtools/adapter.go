@@ -42,9 +42,9 @@ func Definitions(s Spec) []sdk.Definition {
 		return map[string]any{"type": "object", "properties": properties, "required": append([]string{}, required...), "additionalProperties": false}
 	}
 	return []sdk.Definition{
-		makeDef("list", "List "+s.Name+" owned by the current user. Search covers title and document fields; follow next_cursor.", object(map[string]any{"query": str(255), "cursor": str(96), "limit": map[string]any{"type": "integer", "minimum": 1, "maximum": 5}})),
-		makeDef("read", "Read an immutable revision of "+s.Name+". Omit revision for the current head.", object(map[string]any{"id": str(96), "revision": map[string]any{"type": "integer", "minimum": 1}}, "id")),
-		makeDef("save", "Create or replace "+s.Name+". Read before updating, preserve untouched fields, and use expected_revision. Product validation enforces lifecycle and acceptance. Never invent completion evidence.", object(map[string]any{"id": str(96), "expected_revision": map[string]any{"type": "integer", "minimum": 0}, "title": map[string]any{"type": "string", "minLength": 1, "maxLength": 255}, "status": str(32), "data": s.DataSchema}, "expected_revision", "title", "status", "data")),
+		makeDef("list", "List "+s.Name+" owned by the current user. Search covers title and document fields; follow next_cursor.", object(map[string]any{"query": str(255), "cursor": map[string]any{"type": "integer", "minimum": 1}, "limit": map[string]any{"type": "integer", "minimum": 1, "maximum": 5}})),
+		makeDef("read", "Read an immutable revision of "+s.Name+". Omit revision for the current head.", object(map[string]any{"record_id": str(96), "revision": map[string]any{"type": "integer", "minimum": 1}}, "record_id")),
+		makeDef("save", "Create or replace "+s.Name+". Read before updating, preserve untouched fields, and use expected_revision. Product validation enforces lifecycle and acceptance. Never invent completion evidence.", object(map[string]any{"record_id": str(96), "expected_revision": map[string]any{"type": "integer", "minimum": 0}, "title": map[string]any{"type": "string", "minLength": 1, "maxLength": 255}, "status": str(32), "data": s.DataSchema}, "expected_revision", "title", "status", "data")),
 	}
 }
 func (a *Adapter) Register(reg *tools.Registry) error {
@@ -88,8 +88,9 @@ func (a *Adapter) Invoke(ctx context.Context, in sdk.Request) (sdk.Result, error
 	switch strings.TrimPrefix(in.Definition.Key, a.Spec.Prefix+"_") {
 	case "list":
 		var q struct {
-			Query, Cursor string
-			Limit         int
+			Query  string `json:"query"`
+			Cursor int64  `json:"cursor"`
+			Limit  int    `json:"limit"`
 		}
 		if err := json.Unmarshal([]byte(in.Call.Arguments), &q); err != nil {
 			return sdk.Result{}, err
@@ -101,13 +102,13 @@ func (a *Adapter) Invoke(ctx context.Context, in sdk.Request) (sdk.Result, error
 		return result(p, e)
 	case "read":
 		var q struct {
-			ID       string
-			Revision int64
+			RecordID string `json:"record_id"`
+			Revision int64  `json:"revision"`
 		}
 		if err := json.Unmarshal([]byte(in.Call.Arguments), &q); err != nil {
 			return sdk.Result{}, err
 		}
-		r, e := a.Store.Get(ctx, a.Spec.Kind, q.ID, q.Revision, in.Authority)
+		r, e := a.Store.Get(ctx, a.Spec.Kind, q.RecordID, q.Revision, in.Authority)
 		return result(r, e)
 	case "save":
 		w, e := a.mutation(in)
@@ -116,7 +117,7 @@ func (a *Adapter) Invoke(ctx context.Context, in sdk.Request) (sdk.Result, error
 		}
 		r, e := a.Store.Save(ctx, a.Spec.Kind, w, in.Authority, a.Spec.Validate)
 		out, e := result(r, e)
-		out.ResourceID = r.ID
+		out.ResourceID = r.RecordID
 		return out, e
 	}
 	return sdk.Result{}, fmt.Errorf("unsupported record tool")
@@ -137,6 +138,6 @@ func (a *Adapter) Reconcile(ctx context.Context, in sdk.Request) (sdk.Result, er
 		return sdk.Result{Status: "uncertain", ErrorCode: "record.receipt_missing"}, nil
 	}
 	out, e := result(r, nil)
-	out.ResourceID = r.ID
+	out.ResourceID = r.RecordID
 	return out, e
 }

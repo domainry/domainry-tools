@@ -106,7 +106,7 @@ type createInput struct {
 
 type listInput struct {
 	Status string `json:"status,omitempty"`
-	Cursor string `json:"cursor,omitempty"`
+	Cursor int64  `json:"cursor,omitempty"`
 	Limit  int    `json:"limit,omitempty"`
 }
 
@@ -147,7 +147,8 @@ type detailsView struct {
 }
 
 type planView struct {
-	ID             string      `json:"id"`
+	ID             int64       `json:"id"`
+	PlanID         string      `json:"plan_id"`
 	Name           string      `json:"name"`
 	Kind           string      `json:"kind"`
 	Timezone       string      `json:"timezone"`
@@ -166,7 +167,7 @@ type output struct {
 	RequestSHA256 string      `json:"request_sha256"`
 	Plan          *planView   `json:"plan,omitempty"`
 	Items         *[]planView `json:"items,omitempty"`
-	NextCursor    string      `json:"next_cursor,omitempty"`
+	NextCursor    int64       `json:"next_cursor,omitempty"`
 	PlanID        string      `json:"plan_id,omitempty"`
 	Revision      int64       `json:"revision,omitempty"`
 	Deleted       bool        `json:"deleted,omitempty"`
@@ -496,7 +497,7 @@ func schedulerTrigger(input triggerInput, timezone string) (schedulersdk.Schedul
 }
 
 func (a *Adapter) view(plan schedulersdk.ScheduledPlan) (planView, error) {
-	view := planView{ID: plan.ID, Name: plan.Name, Timezone: plan.Timezone, Status: plan.Status, Revision: plan.Revision, ConversationID: plan.ConversationRef.ConversationID, RunID: plan.ConversationRef.RunID, CreatedAt: plan.CreatedAt, UpdatedAt: plan.UpdatedAt}
+	view := planView{ID: plan.ID, PlanID: plan.PlanID, Name: plan.Name, Timezone: plan.Timezone, Status: plan.Status, Revision: plan.Revision, ConversationID: plan.ConversationRef.ConversationID, RunID: plan.ConversationRef.RunID, CreatedAt: plan.CreatedAt, UpdatedAt: plan.UpdatedAt}
 	if plan.Trigger.Type == schedulersdk.ScheduledPlanTriggerOnce && plan.Trigger.At != nil {
 		view.Trigger = triggerView{Type: schedulersdk.ScheduledPlanTriggerOnce, At: plan.Trigger.At.UTC().Format(time.RFC3339Nano)}
 	} else if plan.Trigger.Type == schedulersdk.ScheduledPlanTriggerRecurring && plan.Trigger.Schedule != nil {
@@ -603,7 +604,7 @@ func (a *Adapter) AuthorizeResult(ctx context.Context, request sdk.Request, resu
 		if saved.Plan == nil {
 			return toolError("forbidden", "schedule_result_invalid")
 		}
-		current, err := a.Plans.GetScheduledPlan(ctx, schedulersdk.ScheduledPlanLookup{Owner: owner, PlanID: saved.Plan.ID})
+		current, err := a.Plans.GetScheduledPlan(ctx, schedulersdk.ScheduledPlanLookup{Owner: owner, PlanID: saved.Plan.PlanID})
 		if err != nil {
 			return err
 		}
@@ -709,7 +710,7 @@ func digest(value any) string {
 
 func resourceID(out output) string {
 	if out.Plan != nil {
-		return out.Plan.ID
+		return out.Plan.PlanID
 	}
 	return out.PlanID
 }

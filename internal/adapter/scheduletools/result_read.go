@@ -47,7 +47,7 @@ func (a *Adapter) AuthorizeResultRead(ctx context.Context, request sdk.Request, 
 		return ctx.Err()
 	case sdk.ScheduleDeleteToolKey:
 		var input planInput
-		if strictDecode(request.Call.Arguments, &input) != nil || input.ExpectedRevision < 1 || saved.Plan != nil || saved.Items != nil || saved.NextCursor != "" || saved.PlanID != input.PlanID || !saved.Deleted || saved.Revision <= input.ExpectedRevision || saved.Revision != input.ExpectedRevision+1 {
+		if strictDecode(request.Call.Arguments, &input) != nil || input.ExpectedRevision < 1 || saved.Plan != nil || saved.Items != nil || saved.NextCursor != 0 || saved.PlanID != input.PlanID || !saved.Deleted || saved.Revision <= input.ExpectedRevision || saved.Revision != input.ExpectedRevision+1 {
 			return toolError("forbidden", "schedule_result_invalid")
 		}
 		if err := a.authorizePlanRead(ctx, request, sdk.ScheduleGetToolKey, map[string]string{"plan_id": input.PlanID}); err != nil {
@@ -69,7 +69,7 @@ func (a *Adapter) AuthorizeResultRead(ctx context.Context, request sdk.Request, 
 		}
 		return ctx.Err()
 	case sdk.ScheduleCreateToolKey, sdk.ScheduleGetToolKey, sdk.ScheduleUpdateToolKey, sdk.SchedulePauseToolKey, sdk.ScheduleResumeToolKey:
-		if saved.Plan == nil || saved.Items != nil || saved.PlanID != "" || saved.Revision != 0 || saved.Deleted || saved.NextCursor != "" {
+		if saved.Plan == nil || saved.Items != nil || saved.PlanID != "" || saved.Revision != 0 || saved.Deleted || saved.NextCursor != 0 {
 			return toolError("forbidden", "schedule_result_invalid")
 		}
 		if request.Definition.Key != sdk.ScheduleCreateToolKey {
@@ -77,7 +77,7 @@ func (a *Adapter) AuthorizeResultRead(ctx context.Context, request sdk.Request, 
 				PlanID           string `json:"plan_id"`
 				ExpectedRevision int64  `json:"expected_revision"`
 			}
-			if json.Unmarshal([]byte(request.Call.Arguments), &input) != nil || input.PlanID != saved.Plan.ID || request.Definition.Key != sdk.ScheduleGetToolKey && (input.ExpectedRevision < 1 || saved.Plan.Revision <= input.ExpectedRevision || saved.Plan.Revision != input.ExpectedRevision+1) {
+			if json.Unmarshal([]byte(request.Call.Arguments), &input) != nil || input.PlanID != saved.Plan.PlanID || request.Definition.Key != sdk.ScheduleGetToolKey && (input.ExpectedRevision < 1 || saved.Plan.Revision <= input.ExpectedRevision || saved.Plan.Revision != input.ExpectedRevision+1) {
 				return toolError("forbidden", "schedule_result_invalid")
 			}
 		}
@@ -112,13 +112,13 @@ func (a *Adapter) authorizePlanRead(ctx context.Context, original sdk.Request, k
 }
 
 func (a *Adapter) readSavedPlan(ctx context.Context, request sdk.Request, saved planView) error {
-	if !validKey(saved.ID) || saved.Revision < 1 {
+	if saved.ID <= 0 || !validKey(saved.PlanID) || saved.Revision < 1 {
 		return toolError("forbidden", "schedule_result_invalid")
 	}
-	if err := a.authorizePlanRead(ctx, request, sdk.ScheduleGetToolKey, map[string]string{"plan_id": saved.ID}); err != nil {
+	if err := a.authorizePlanRead(ctx, request, sdk.ScheduleGetToolKey, map[string]string{"plan_id": saved.PlanID}); err != nil {
 		return err
 	}
-	current, err := a.Plans.GetScheduledPlan(ctx, scheduler.ScheduledPlanLookup{Owner: a.owner(request.Authority), PlanID: saved.ID})
+	current, err := a.Plans.GetScheduledPlan(ctx, scheduler.ScheduledPlanLookup{Owner: a.owner(request.Authority), PlanID: saved.PlanID})
 	if err != nil {
 		return err
 	}

@@ -50,8 +50,9 @@ func (a *Adapter) AuthorizeResultRead(ctx context.Context, in sdk.Request, out s
 	switch definition.Key {
 	case a.Spec.Prefix + "_list":
 		var q struct {
-			Query, Cursor string
-			Limit         int
+			Query  string `json:"query"`
+			Cursor int64  `json:"cursor"`
+			Limit  int    `json:"limit"`
 		}
 		var page contract.Page
 		if recordDecode([]byte(in.Call.Arguments), &q) != nil || recordDecode(out.Content, &page) != nil || page.Items == nil || out.ResourceID != "" {
@@ -60,7 +61,7 @@ func (a *Adapter) AuthorizeResultRead(ctx context.Context, in sdk.Request, out s
 		if q.Limit == 0 {
 			q.Limit = 5
 		}
-		if len(page.Items) > q.Limit || page.Complete && page.NextCursor != "" || !page.Complete && (len(page.Items) != q.Limit || page.NextCursor != page.Items[len(page.Items)-1].ID) {
+		if len(page.Items) > q.Limit || page.Complete && page.NextCursor != 0 || !page.Complete && (len(page.Items) != q.Limit || page.NextCursor != page.Items[len(page.Items)-1].ID) {
 			return recordReadDenied("source_invalid")
 		}
 		previous := q.Cursor
@@ -73,22 +74,22 @@ func (a *Adapter) AuthorizeResultRead(ctx context.Context, in sdk.Request, out s
 		key, readArgs, saved = definition.Key, in.Call.Arguments, page.Items
 	case a.Spec.Prefix + "_read":
 		var q struct {
-			ID       string
-			Revision int64
+			RecordID string `json:"record_id"`
+			Revision int64  `json:"revision"`
 		}
 		var row contract.Record
-		if recordDecode([]byte(in.Call.Arguments), &q) != nil || recordDecode(out.Content, &row) != nil || out.ResourceID != "" || row.ID != q.ID || q.Revision > 0 && row.Revision != q.Revision {
+		if recordDecode([]byte(in.Call.Arguments), &q) != nil || recordDecode(out.Content, &row) != nil || out.ResourceID != "" || row.RecordID != q.RecordID || q.Revision > 0 && row.Revision != q.Revision {
 			return recordReadDenied("source_invalid")
 		}
 		readArgs, err = recordReadArguments(row)
 		saved = []contract.Record{row}
 	case a.Spec.Prefix + "_save":
 		var row contract.Record
-		if recordDecode(out.Content, &row) != nil || out.ResourceID != row.ID || strings.TrimSpace(in.IdempotencyKey) == "" {
+		if recordDecode(out.Content, &row) != nil || out.ResourceID != row.RecordID || strings.TrimSpace(in.IdempotencyKey) == "" {
 			return recordReadDenied("source_invalid")
 		}
 		w, mutationErr := a.mutation(in)
-		if mutationErr != nil || w.ID != "" && row.ID != w.ID || row.Revision != w.ExpectedRevision+1 {
+		if mutationErr != nil || w.RecordID != "" && row.RecordID != w.RecordID || row.Revision != w.ExpectedRevision+1 {
 			return recordReadDenied("source_invalid")
 		}
 		readArgs, err = recordReadArguments(row)
@@ -108,10 +109,10 @@ func (a *Adapter) AuthorizeResultRead(ctx context.Context, in sdk.Request, out s
 		}
 	}
 	for _, row := range saved {
-		if row.Kind != a.Spec.Kind || row.ID == "" || row.Revision < 1 {
+		if row.Kind != a.Spec.Kind || row.ID < 1 || row.RecordID == "" || row.Revision < 1 {
 			return recordReadDenied("source_invalid")
 		}
-		current, err := a.Store.Get(ctx, a.Spec.Kind, row.ID, row.Revision, in.Authority)
+		current, err := a.Store.Get(ctx, a.Spec.Kind, row.RecordID, row.Revision, in.Authority)
 		if err != nil {
 			return err
 		}
@@ -163,9 +164,9 @@ func (a *Adapter) authorizeRecordRead(ctx context.Context, original sdk.Request,
 
 func recordReadArguments(row contract.Record) (string, error) {
 	raw, err := json.Marshal(struct {
-		ID       string `json:"id"`
+		RecordID string `json:"record_id"`
 		Revision int64  `json:"revision"`
-	}{row.ID, row.Revision})
+	}{row.RecordID, row.Revision})
 	return string(raw), err
 }
 

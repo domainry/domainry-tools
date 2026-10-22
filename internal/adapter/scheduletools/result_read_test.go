@@ -22,7 +22,7 @@ func (s *receiptPlanService) ReadScheduledPlanDeletion(ctx context.Context, look
 	if !ok || plan.Owner != lookup.Owner || plan.Status != scheduler.ScheduledPlanStatusDeleted {
 		return scheduler.ScheduledPlanDeleteReceipt{}, scheduler.ErrScheduledPlanNotFound
 	}
-	return scheduler.ScheduledPlanDeleteReceipt{PlanID: plan.ID, Revision: plan.Revision, Deleted: true}, nil
+	return scheduler.ScheduledPlanDeleteReceipt{PlanID: plan.PlanID, Revision: plan.Revision, Deleted: true}, nil
 }
 
 func TestScheduleReceiptReadUsesCurrentDataGrantWithoutMutationOrCatalog(t *testing.T) {
