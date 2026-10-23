@@ -103,7 +103,7 @@ func (a *Adapter) authorizePlanRead(ctx context.Context, original sdk.Request, k
 	}
 	// No lease, confirmation, idempotency key or source write action is passed
 	// to the current data-reading check. It does not execute the read tool.
-	request := sdk.Request{Authority: original.Authority, ConversationID: original.ConversationID, RunID: original.RunID, CorrelationID: original.CorrelationID, Step: original.Step, Definition: definition, Call: sdk.Call{ID: original.Call.ID, Name: key, Arguments: string(body)}}
+	request := sdk.Request{Authority: original.Authority, ConversationID: original.ConversationID, RunID: original.RunID, Step: original.Step, Definition: definition, Call: sdk.Call{ID: original.Call.ID, Name: key, Arguments: string(body)}}
 	auth, err := a.Authorize(ctx, request)
 	if err != nil || !auth.Granted || auth.ConfirmationRequired {
 		return authErrOrDenied(err)

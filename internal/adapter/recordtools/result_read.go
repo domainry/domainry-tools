@@ -151,7 +151,7 @@ func (a *Adapter) authorizeRecordRead(ctx context.Context, original sdk.Request,
 			break
 		}
 	}
-	request := sdk.Request{Authority: actor, ConversationID: original.ConversationID, RunID: original.RunID, CorrelationID: original.CorrelationID, Step: original.Step, Definition: definition, Call: sdk.Call{ID: original.Call.ID, Name: key, Arguments: args}}
+	request := sdk.Request{Authority: actor, ConversationID: original.ConversationID, RunID: original.RunID, Step: original.Step, Definition: definition, Call: sdk.Call{ID: original.Call.ID, Name: key, Arguments: args}}
 	auth, err := a.Authorize(ctx, request)
 	if err != nil {
 		return err
